@@ -30,6 +30,11 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+ai-core/studio_origin/*
+
+# Model files (too large for GitHub)
+ai-core/models/whisper/*.pt
+ai-core/services/stt/models/whisper/*.pt
 
 # PyCharm
 .idea/
