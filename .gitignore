@@ -26,7 +26,7 @@ var/
 wheels/
 pip-wheel-metadata/
 share/python-wheels/
-*.egg-info/
+*.egg-info/x
 .installed.cfg
 *.egg
 MANIFEST
@@ -35,6 +35,7 @@ ai-core/studio_origin/*
 # Model files (too large for GitHub)
 ai-core/models/whisper/*.pt
 ai-core/services/stt/models/whisper/*.pt
+models/*
 
 # PyCharm
 .idea/
