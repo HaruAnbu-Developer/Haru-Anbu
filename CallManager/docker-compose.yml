@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:14-alpine
+    container_name: haru-postgres
+    environment:
+      POSTGRES_DB: haru_call_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: haruPass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - haru-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Call Manager (Spring Boot)
+  call-manager:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: haru-call-manager
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - DATABASE_URL=jdbc:postgresql://postgres:5432/haru_call_db
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=haruPass
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER}
+      - WEBHOOK_BASE_URL=${WEBHOOK_BASE_URL}
+      - AI_CORE_BASE_URL=http://ai-core:8001
+      - AI_CORE_WEBSOCKET_URL=ws://ai-core:8001/ws/chat
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - haru-network
+    volumes:
+      - ./logs:/app/logs
+
+  # AI Core (FastAPI) - Optional
+  # Uncomment if running AI Core in Docker
+  # ai-core:
+  #   build:
+  #     context: ../ai-core
+  #     dockerfile: Dockerfile
+  #   container_name: haru-ai-core
+  #   ports:
+  #     - "8001:8001"
+  #   environment:
+  #     - OPENAI_API_KEY=${OPENAI_API_KEY}
+  #   networks:
+  #     - haru-network
+  #   volumes:
+  #     - ../ai-core/models:/app/models
+  #     - ../ai-core/outputs:/app/outputs
+
+  # pgAdmin (Database Management UI) - Optional
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: haru-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@haru.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    networks:
+      - haru-network
+    depends_on:
+      - postgres
+
+networks:
+  haru-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
