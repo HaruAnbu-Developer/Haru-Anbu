@@ -35,7 +35,8 @@ dependencies {
 	implementation 'org.java-websocket:Java-WebSocket:1.5.4'
 	
 	// Database
-	runtimeOnly 'org.postgresql:postgresql'
+	implementation 'mysql:mysql-connector-j'
+
 	
 	// Lombok
 	compileOnly 'org.projectlombok:lombok'

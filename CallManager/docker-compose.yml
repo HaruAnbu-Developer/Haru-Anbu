@@ -1,25 +1,26 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database
-  postgres:
-    image: postgres:14-alpine
-    container_name: haru-postgres
+  # mySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: haru-mysql
     environment:
-      POSTGRES_DB: haru_call_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: haruPass
+      MYSQL_DATABASE: haru_call_db
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_USER: root
     ports:
-      - "5432:5432"
+      - "3306:3306"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mysql_data:/var/lib/mysql
     networks:
       - haru-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -pharuPass"]
       interval: 10s
       timeout: 5s
       retries: 5
+
 
   # Call Manager (Spring Boot)
   call-manager:
