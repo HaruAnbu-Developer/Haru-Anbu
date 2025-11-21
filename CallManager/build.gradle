@@ -35,7 +35,7 @@ dependencies {
 	implementation 'org.java-websocket:Java-WebSocket:1.5.4'
 	
 	// Database
-	implementation 'mysql:mysql-connector-j'
+	implementation 'com.mysql:mysql-connector-j:8.2.0'
 
 	
 	// Lombok
