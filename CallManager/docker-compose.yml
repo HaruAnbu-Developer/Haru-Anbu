@@ -1,28 +1,8 @@
 version: '3.8'
 
 services:
-  # MySQL Database
-  mysql:
-    image: mysql:8.0
-    container_name: haru-mysql
-    environment:
-      MYSQL_DATABASE: call_manager_db
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
-      MYSQL_USER: haru_db
-      MYSQL_PASSWORD: ${DB_PASSWORD}
-    ports:
-      - "3306:3306"
-    volumes:
-      - mysql_data:/var/lib/mysql
-    networks:
-      - haru-network
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p${DB_PASSWORD}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # Call Manager (Spring Boot)
+
   call-manager:
     build:
       context: .
@@ -31,35 +11,19 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - SPRING_PROFILES_ACTIVE=dev
-      - DATABASE_URL=jdbc:mysql://mysql:3306/haru_call_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
-      - DB_USERNAME=root
-      - DB_PASSWORD=${DB_PASSWORD}
-      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
-      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
-      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER}
-      - WEBHOOK_BASE_URL=${WEBHOOK_BASE_URL}
-      - AI_CORE_BASE_URL=http://ai-core:8001
-      - AI_CORE_WEBSOCKET_URL=ws://ai-core:8001/ws/chat
-    depends_on:
-      mysql:
-        condition: service_healthy
+      SPRING_PROFILES_ACTIVE: dev
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DATABASE_URL: ${DATABASE_URL}
+
     networks:
       - haru-network
     volumes:
       - ./logs:/app/logs
-
-  # (선택) MySQL용 Adminer UI
-  adminer:
-    image: adminer
-    container_name: haru-adminer
-    ports:
-      - "8081:8080"
-    networks:
-      - haru-network
-    depends_on:
-      - mysql
-
+      
 networks:
   haru-network:
     driver: bridge
