@@ -5,7 +5,6 @@ from typing import Dict, Any, Optional
 from services.stt.stt_service import STTService
 from services.llm.llm_service_polyglot import LLMService
 from services.tts.tts_service import TTSService   # 🔥 TTS 서비스 추가
-
 logger = logging.getLogger(__name__)
 
 
@@ -64,7 +63,8 @@ class VoiceConversationPipeline:
 
         # 3. TTS (AI 응답 → 음성)
         logger.info("Processing TTS...")
-        tts_output_path = "/Users/namung2/haru/Haru-Anbu/ai-core/outputs/tts_response.wav"
+        # tts_output_path = "/Users/namung2/haru/Haru-Anbu/ai-core/outputs/tts_response2.wav"
+        tts_output_path = "./outputs/tts_response2.wav"
         tts_result = self.tts.synthesize(
             text=ai_response,
             save_path=tts_output_path
@@ -118,8 +118,8 @@ def main():
     
     # 테스트용 오디오 파일
     print("\n📁 Test 1: 오디오 파일 입력")
-    audio_file = "/Users/namung2/haru/Haru-Anbu/ai-core/studio_origin/M-GS-1/sample10.wav"
-    
+    # audio_file = "/Users/namung2/haru/Haru-Anbu/ai-core/studio_origin/M-GS-1/sample10.wav" 이거 맥용 하드코딩
+    audio_file = "/home/namung/ai-core/Haru-Anbu/ai-core/data/studio_origin/W-SO-1/sample1.wav"
     if os.path.exists(audio_file):
         result = pipeline.process_audio(audio_path=audio_file)
         
