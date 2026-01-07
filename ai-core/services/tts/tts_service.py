@@ -19,7 +19,8 @@ class TTSService:
         self,
         model_name: str = "tts_models/multilingual/multi-dataset/xtts_v2",
         device: Optional[str] = None,
-        speaker_wav: str = "/Users/namung2/haru/Haru-Anbu/ai-core/studio_origin/W-SO-1/sample1.wav",
+        # speaker_wav: str = "/Users/namung2/haru/Haru-Anbu/ai-core/studio_origin/W-SO-1/sample1.wav",
+        speaker_wav: str = "/home/namung/ai-core/Haru-Anbu/ai-core/data/studio_origin/W-SO-1/sample1.wav",
         language: str = "ko"
     ):
         """
@@ -33,7 +34,6 @@ class TTSService:
         self.language = language
         self.speaker_wav = speaker_wav
 
-        # 디바이스 자동 감지
         if device is None:
             if torch.backends.mps.is_available():
                 self.device = "mps"
@@ -47,7 +47,7 @@ class TTSService:
         self.tts = None
         self.sample_rate = 22050
 
-        # speaker_wav 파일 존재 확인
+
         if not Path(self.speaker_wav).exists():
             raise FileNotFoundError(f"Speaker wav file not found: {self.speaker_wav}")
 
@@ -57,11 +57,8 @@ class TTSService:
             f"TTS Service initialized: model={model_name}, device={self.device}, speaker_wav={self.speaker_wav}"
         )
 
-    # ------------------------------------------------------------------------------------
-    # MODEL LOADING
-    # ------------------------------------------------------------------------------------
+
     def _load_model(self):
-        """TTS 모델 로드"""
         try:
             logger.info(f"Loading TTS model: {self.model_name}...")
             start_time = time.time()
@@ -81,11 +78,8 @@ class TTSService:
             logger.error(f"Failed to load TTS model: {e}")
             raise
 
-    # ------------------------------------------------------------------------------------
-    # WARMUP
-    # ------------------------------------------------------------------------------------
     def _warmup(self):
-        """모델 첫 실행 시간 단축을 위한 Warm-up"""
+        """ Warm-up"""
         try:
             logger.info("Warming up TTS model...")
             _ = self.synthesize("안녕하세요", save_path=None)
@@ -93,9 +87,7 @@ class TTSService:
         except Exception as e:
             logger.warning(f"TTS warmup failed: {e}")
 
-    # ------------------------------------------------------------------------------------
-    # TEXT SYNTHESIS
-    # ------------------------------------------------------------------------------------
+
     def synthesize(
         self,
         text: str,
@@ -142,9 +134,6 @@ class TTSService:
             logger.error(f"TTS synthesis failed: {e}")
             raise
 
-    # ------------------------------------------------------------------------------------
-    # STREAMING
-    # ------------------------------------------------------------------------------------
     def synthesize_streaming(self, text: str, chunk_size: int = 512):
         result = self.synthesize(text)
         audio = result["audio"]
@@ -152,9 +141,6 @@ class TTSService:
         for i in range(0, len(audio), chunk_size):
             yield audio[i:i + chunk_size]
 
-    # ------------------------------------------------------------------------------------
-    # TEXT PREPROCESSING
-    # ------------------------------------------------------------------------------------
     def _preprocess_text(self, text: str) -> str:
         text = text.strip().replace("\n", " ")
 
@@ -180,9 +166,7 @@ class TTSService:
 
         return results
 
-    # ------------------------------------------------------------------------------------
-    # MODELS LIST
-    # ------------------------------------------------------------------------------------
+
     def get_available_models(self) -> list:
         try:
             models = TTS().list_models()
@@ -191,9 +175,6 @@ class TTSService:
             logger.error(f"Failed to get model list: {e}")
             return []
 
-    # ------------------------------------------------------------------------------------
-    # DEVICE INFO
-    # ------------------------------------------------------------------------------------
     def get_device_info(self) -> Dict[str, Any]:
         info = {
             "device": self.device,
@@ -204,17 +185,12 @@ class TTSService:
         }
         return info
 
-    # ------------------------------------------------------------------------------------
-    # SAVE
-    # ------------------------------------------------------------------------------------
+
     def save_audio(self, audio: np.ndarray, file_path: str, sample_rate: Optional[int] = None):
         sr = sample_rate or self.sample_rate
         Path(file_path).parent.mkdir(parents=True, exist_ok=True)
         sf.write(file_path, audio, sr)
 
-    # ------------------------------------------------------------------------------------
-    # UNLOAD
-    # ------------------------------------------------------------------------------------
     def unload_model(self):
         if self.tts:
             del self.tts
