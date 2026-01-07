@@ -56,6 +56,9 @@ dependencies {
 	// Actuator (Monitoring)
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	
+	// dotenv for configuration management
+	implementation 'io.github.cdimascio:dotenv-java:3.0.0'
+	
 	// Testing
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
