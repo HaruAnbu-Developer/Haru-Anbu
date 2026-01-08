@@ -2,6 +2,7 @@ plugins {
 	id 'java'
 	id 'org.springframework.boot' version '3.5.7'
 	id 'io.spring.dependency-management' version '1.1.7'
+	id 'com.google.protobuf' version '0.9.4'
 }
 
 group = 'com.haru-anbu'
@@ -28,16 +29,18 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-websocket'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	
+	implementation 'net.devh:grpc-spring-boot-starter:3.1.0.RELEASE'
+	implementation 'io.grpc:grpc-netty:1.71.0'
+	implementation 'io.grpc:grpc-protobuf:1.71.0'
+	implementation 'io.grpc:grpc-stub:1.71.0'
+	implementation 'com.google.protobuf:protobuf-java:4.28.3'
+	
 	// Twilio SDK
 	implementation 'com.twilio.sdk:twilio:9.14.1'
-	
-	// WebSocket Client
-	implementation 'org.java-websocket:Java-WebSocket:1.5.4'
 	
 	// Database
 	implementation 'com.mysql:mysql-connector-j:8.2.0'
 
-	
 	// Lombok
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
@@ -64,6 +67,33 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
 	testImplementation 'org.testcontainers:junit-jupiter'
 	testImplementation 'org.testcontainers:postgresql'
+}
+
+// Protobuf 
+protobuf {
+	protoc {
+		artifact = 'com.google.protobuf:protoc:3.25.1'
+	}
+	plugins {
+		grpc {
+			artifact = 'io.grpc:protoc-gen-grpc-java:1.60.0'
+		}
+	}
+	generateProtoTasks {
+		all()*.plugins {
+			grpc {}
+		}
+	}
+}
+
+// 생성된 소스 경로 추가
+sourceSets {
+	main {
+		java {
+			srcDirs 'build/generated/source/proto/main/grpc'
+			srcDirs 'build/generated/source/proto/main/java'
+		}
+	}
 }
 
 tasks.named('test') {
