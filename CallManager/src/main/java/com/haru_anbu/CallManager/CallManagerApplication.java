@@ -16,7 +16,6 @@ public class CallManagerApplication {
 		System.out.println("DEBUG: DATABASE_URL from .env => " + dotenv.get("DATABASE_URL"));
         
 		// 2. entries()를 사용하여 로드된 변수들을 System Property로 등록
-        // DotenvEntry 객체는 getKey()와 getValue()를 제공합니다.
         dotenv.entries().forEach(entry -> {
             System.setProperty(entry.getKey(), entry.getValue());
         });
