@@ -1,42 +1,46 @@
 package com.haru_anbu.CallManager.call.entity;
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "call_sessions")
-@Data
-@Builder
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class CallSession {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(nullable = false, unique = true)
-    private String sessionId;  // Twilio Call SID
+    @Column(nullable = false, unique = true, length = 100)
+    private String sessionId;
     
-    @Column(nullable = false)
-    private String userId;  // 대상자 ID
+    @Column(nullable = false, length = 100)
+    private String twilioCallSid;
     
-    @Column(nullable = false)
+    @Column(length = 100)
+    private String aiCoreSessionId;
+    
+    @Column(nullable = false, length = 50)
+    private String userId;
+    
+    @Column(nullable = false, length = 20)
     private String phoneNumber;
     
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private CallStatus status;  // INITIATED, RINGING, IN_PROGRESS, COMPLETED, FAILED
+    @Column(nullable = false, length = 20)
+    private CallStatus status;
     
-    @Column
-    private String twilioCallSid;
-    
-    @Column
-    private String aiCoreSessionId;
+    @Column(length = 20)
+    private String direction; // inbound, outbound
     
     @Column
     private LocalDateTime startedAt;
@@ -47,16 +51,22 @@ public class CallSession {
     @Column
     private Integer durationSeconds;
     
+    @Column(length = 500)
+    private String recordingUrl;
+    
     @Column(columnDefinition = "TEXT")
     private String conversationSummary;
     
-    @Column
-    private String recordingUrl;
+    @Column(columnDefinition = "TEXT")
+    private String metadata;
+    
+    @Column(length = 100)
+    private String endReason;
     
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
     
-    @Column
+    @Column(nullable = false)
     private LocalDateTime updatedAt;
     
     @PrePersist
@@ -76,7 +86,17 @@ public class CallSession {
         IN_PROGRESS,
         COMPLETED,
         FAILED,
+        BUSY,
         NO_ANSWER,
-        BUSY
+        CANCELED
+    }
+    
+    // 통화 시간 계산
+    public void calculateDuration() {
+        if (startedAt != null && endedAt != null) {
+            this.durationSeconds = (int) java.time.Duration
+                .between(startedAt, endedAt)
+                .getSeconds();
+        }
     }
 }

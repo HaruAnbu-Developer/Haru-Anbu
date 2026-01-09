@@ -53,7 +53,18 @@ twilio:
   phone-number: ${TWILIO_PHONE_NUMBER}
   webhook-base-url: ${WEBHOOK_BASE_URL:https://your-domain.com}
 
-# AI Core Configuration
+# gRPC Configuration
+grpc:
+  ai-service:
+    host: ${GRPC_AI_SERVICE_HOST:localhost}
+    port: ${GRPC_AI_SERVICE_PORT:50051}
+    max-inbound-message-size: 10485760  # 10MB
+    keepalive-time: 30  # seconds
+    keepalive-timeout: 10  # seconds
+    enable-retry: true
+    max-retry-attempts: 3
+
+# AI Core Configuration (deprecated - use gRPC)
 ai-core:
   base-url: ${AI_CORE_BASE_URL:http://localhost:8001}
   websocket-url: ${AI_CORE_WEBSOCKET_URL:ws://localhost:8001/ws/chat}
@@ -70,6 +81,10 @@ call:
   sample-rate: ${CALL_SAMPLE_RATE:8000}
   buffer-size: 160
   stream-timeout: 5000
+  session-cleanup:
+    enabled: true
+    timeout-minutes: 35  # max-duration + 5 min buffer
+    schedule-cron: "0 */10 * * * *"  # every 10 minutes
 
 # Logging Configuration
 logging:
@@ -77,6 +92,7 @@ logging:
     root: ${LOGGING_LEVEL_ROOT:INFO}
     com.haru_anbu: ${LOGGING_LEVEL_COM_HARU_ANBU:DEBUG}
     com.twilio: ${LOGGING_LEVEL_COM_TWILIO:DEBUG}
+    io.grpc: ${LOGGING_LEVEL_IO_GRPC:INFO}
     org.springframework.web: INFO
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
@@ -114,10 +130,16 @@ spring:
       hibernate:
         format_sql: true
 
+grpc:
+  ai-service:
+    host: localhost
+    port: 50051
+
 logging:
   level:
     com.haru_anbu: DEBUG
     org.springframework.web: DEBUG
+    io.grpc: DEBUG
 
 ---
 # Production Profile
@@ -131,7 +153,14 @@ spring:
       hibernate:
         format_sql: false
 
+grpc:
+  ai-service:
+    host: ${GRPC_AI_SERVICE_HOST}
+    port: ${GRPC_AI_SERVICE_PORT}
+
 logging:
   level:
     com.haru_anbu: INFO
     org.springframework.web: WARN
+    io.grpc: WARN
+  
