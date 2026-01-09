@@ -1,92 +1,40 @@
 syntax = "proto3";
 
+package ai.inference;
+
 option java_multiple_files = true;
 option java_package = "com.haru_anbu.CallManager.grpc";
-option java_outer_classname = "AIServiceProto";
+option java_outer_classname = "VoiceStreamProto";
 
-package ai;
-
-// AI 서비스 정의
-service AIService {
-  // 세션 시작
-  rpc StartSession(StartSessionRequest) returns (StartSessionResponse);
-  
-  // 오디오 스트리밍 (양방향)
-  rpc StreamAudio(stream AudioChunk) returns (stream AudioChunk);
-  
-  // 텍스트 처리 (STT 결과 전송 및 TTS 응답 받기)
-  rpc ProcessText(TextRequest) returns (TextResponse);
-  
-  // 세션 종료
-  rpc EndSession(EndSessionRequest) returns (EndSessionResponse);
-  
-  // 세션 상태 조회
-  rpc GetSessionStatus(SessionStatusRequest) returns (SessionStatusResponse);
+// AI 음성 대화 서비스
+service VoiceConversation {
+  // 양방향 스트리밍: 실시간 음성 데이터를 주고받음
+  rpc StreamConversation(stream VoiceRequest) returns (stream VoiceResponse);
 }
 
-// 세션 시작 요청
-message StartSessionRequest {
-  string user_id = 1;
-  string session_id = 2;
-  string phone_number = 3;
-  map<string, string> metadata = 4;
+// 클라이언트 -> AI 서버 요청
+message VoiceRequest {
+  oneof payload {
+    SessionConfig config = 1;   // 세션 시작 시 1회 전송
+    bytes audio_content = 2;    // 실시간 20-50ms PCM 데이터
+  }
 }
 
-message StartSessionResponse {
-  string session_id = 1;
-  bool success = 2;
-  string message = 3;
+// 세션 설정
+message SessionConfig {
+  string user_id = 1;           // DB 고유 식별자
+  string session_id = 2;        // Call Manager가 생성한 세션 ID
+  int32 sample_rate = 3;        // 16000 권장
+  string language_code = 4;     // "ko-KR"
+  string phone_number = 5;      // 전화번호 (옵션)
 }
 
-// 오디오 청크
-message AudioChunk {
-  string session_id = 1;
-  bytes audio_data = 2;
-  int32 sample_rate = 3;
-  string format = 4;  // mulaw, pcm, etc.
-  int64 timestamp = 5;
-  string direction = 6;  // inbound, outbound
-}
-
-// 텍스트 처리 요청
-message TextRequest {
-  string session_id = 1;
-  string text = 2;
-  string speaker = 3;  // user, assistant
-  int64 timestamp = 4;
-}
-
-message TextResponse {
-  string session_id = 1;
-  string response_text = 2;
-  string emotion = 3;
-  float confidence = 4;
-  repeated string suggestions = 5;
-}
-
-// 세션 종료 요청
-message EndSessionRequest {
-  string session_id = 1;
-  string reason = 2;
-  int32 duration_seconds = 3;
-}
-
-message EndSessionResponse {
-  string session_id = 1;
-  bool success = 2;
-  string summary = 3;
-  map<string, string> analytics = 4;
-}
-
-// 세션 상태 조회
-message SessionStatusRequest {
-  string session_id = 1;
-}
-
-message SessionStatusResponse {
-  string session_id = 1;
-  string status = 2;  // active, ended, error
-  int32 duration_seconds = 3;
-  int32 message_count = 4;
-  map<string, string> metadata = 5;
+// AI 서버 -> 클라이언트 응답
+message VoiceResponse {
+  oneof payload {
+    bytes audio_output = 1;     // AI 목소리 조각 (Chunk)
+    string transcript = 2;      // 어르신 말 자막
+    string ai_response = 3;     // AI 답변 텍스트
+    bool is_final = 4;          // 한 문장 대화 종료 여부
+  }
 }
