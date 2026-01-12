@@ -29,7 +29,6 @@ public class WebConfig implements WebMvcConfigurer {
         return bean;
     }
 
-
     @Override
     public void configureMessageConverters(List<HttpMessageConverter<?>> converters) {
         // String 컨버터 UTF-8 설정
