@@ -22,6 +22,12 @@ repositories {
 	mavenCentral()
 }
 
+// gRPC 버전 통일 (중요!)
+ext {
+	grpcVersion = '1.76.0'
+	protobufVersion = '3.25.1'
+}
+
 dependencies {
 	// Spring Boot Starters
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
@@ -29,11 +35,18 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-websocket'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	
-	implementation 'net.devh:grpc-spring-boot-starter:3.1.0.RELEASE'
-	implementation 'io.grpc:grpc-netty:1.71.0'
-	implementation 'io.grpc:grpc-protobuf:1.71.0'
-	implementation 'io.grpc:grpc-stub:1.71.0'
-	implementation 'com.google.protobuf:protobuf-java:4.28.3'
+	// gRPC - 버전 통일 (가장 중요!)
+	implementation "io.grpc:grpc-netty-shaded:${grpcVersion}"
+	implementation "io.grpc:grpc-protobuf:${grpcVersion}"
+	implementation "io.grpc:grpc-stub:${grpcVersion}"
+	implementation "com.google.protobuf:protobuf-java:${protobufVersion}"
+	
+	// Java 17 호환성: javax.annotation 대체
+	implementation 'jakarta.annotation:jakarta.annotation-api:2.1.1'
+	implementation 'org.apache.tomcat:annotations-api:6.0.53'
+	
+	// grpc-spring-boot-starter 제거 (충돌 원인)
+	// implementation 'net.devh:grpc-spring-boot-starter:3.1.0.RELEASE'
 	
 	// Twilio SDK
 	implementation 'com.twilio.sdk:twilio:9.14.1'
@@ -69,19 +82,28 @@ dependencies {
 	testImplementation 'org.testcontainers:postgresql'
 }
 
-// Protobuf 
+// Protobuf 설정
 protobuf {
 	protoc {
-		artifact = 'com.google.protobuf:protoc:3.25.1'
+		artifact = "com.google.protobuf:protoc:${protobufVersion}"
 	}
 	plugins {
 		grpc {
-			artifact = 'io.grpc:protoc-gen-grpc-java:1.60.0'
+			artifact = "io.grpc:protoc-gen-grpc-java:${grpcVersion}"
 		}
 	}
 	generateProtoTasks {
-		all()*.plugins {
-			grpc {}
+		all().forEach { task ->
+			task.plugins {
+				grpc {}
+			}
+			// Java 17 호환: javax.annotation 제거
+			task.generateDescriptorSet = true
+			task.builtins {
+				java {
+					option 'annotate_code'
+				}
+			}
 		}
 	}
 }
