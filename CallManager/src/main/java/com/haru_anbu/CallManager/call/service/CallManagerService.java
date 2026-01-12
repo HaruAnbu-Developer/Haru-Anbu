@@ -6,7 +6,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -48,6 +47,7 @@ public class CallManagerService {
     
     /**
      * 통화 연결됨 - AI 음성 스트림 시작
+     * WebSocket Handler에서 호출됨
      */
     @Transactional
     public void onCallConnected(String sessionId, String userId, String phoneNumber) {
@@ -57,75 +57,12 @@ public class CallManagerService {
             // 세션 상태 업데이트
             sessionService.updateSessionStatus(sessionId, CallSession.CallStatus.IN_PROGRESS);
             
-            // AI 음성 스트림 시작
-            startVoiceStream(sessionId, userId, phoneNumber);
+            log.info("Session {} status updated to IN_PROGRESS", sessionId);
             
         } catch (Exception e) {
             log.error("Error on call connected", e);
             sessionService.updateSessionStatus(sessionId, CallSession.CallStatus.FAILED);
         }
-    }
-    
-    /**
-     * AI 음성 스트림 시작
-     */
-    private void startVoiceStream(String sessionId, String userId, String phoneNumber) {
-        log.info("Starting AI voice stream for session: {}", sessionId);
-        
-        VoiceConversationGrpcService.VoiceStreamHandler handler = 
-            new VoiceConversationGrpcService.VoiceStreamHandler() {
-            
-            @Override
-            public void onSessionStarted(String sid) {
-                log.info("AI session started: {}", sid);
-            }
-            
-            @Override
-            public void onAudioOutput(byte[] audioData) {
-                // AI가 생성한 음성을 Twilio로 전송 (WebSocket 통해)
-                log.debug("Received {} bytes from AI for session: {}", audioData.length, sessionId);
-                // TODO: WebSocket을 통해 Twilio로 전송
-            }
-            
-            @Override
-            public void onTranscript(String text) {
-                // 사용자 음성의 텍스트 변환 결과
-                log.info("User said: {}", text);
-                // TODO: DB에 대화 내용 저장
-            }
-            
-            @Override
-            public void onAIResponse(String text) {
-                // AI 응답 텍스트
-                log.info("AI responded: {}", text);
-                // TODO: DB에 대화 내용 저장
-            }
-            
-            @Override
-            public void onTurnComplete(boolean isFinal) {
-                log.debug("Turn complete: {}", isFinal);
-            }
-            
-            @Override
-            public void onError(Throwable t) {
-                log.error("Voice stream error for session: {}", sessionId, t);
-                sessionService.updateSessionStatus(sessionId, CallSession.CallStatus.FAILED);
-            }
-            
-            @Override
-            public void onCompleted() {
-                log.info("Voice stream completed for session: {}", sessionId);
-            }
-        };
-        
-        voiceGrpcService.startVoiceStream(sessionId, userId, phoneNumber, handler);
-    }
-    
-    /**
-     * 오디오 데이터 전송 (Twilio -> AI)
-     */
-    public void sendAudioToAI(String sessionId, byte[] audioData) {
-        voiceGrpcService.sendAudioData(sessionId, audioData);
     }
     
     /**

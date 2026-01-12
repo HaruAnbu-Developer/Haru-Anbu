@@ -10,8 +10,8 @@ import org.springframework.stereotype.Service;
 import jakarta.annotation.PreDestroy;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
  * AI 음성 대화 gRPC 서비스
@@ -24,11 +24,11 @@ public class VoiceConversationGrpcService {
     private final VoiceConversationGrpc.VoiceConversationStub asyncStub;
     private final ManagedChannel channel;
     
-    // 활성 음성 스트림 관리 (sessionId -> StreamObserver)
+    // 활성 음성 스트림 관리 (sessionId → StreamObserver)
     private final Map<String, StreamObserver<VoiceRequest>> activeStreams = new ConcurrentHashMap<>();
     
-    // 스트림 응답 핸들러 관리
-    private final Map<String, VoiceStreamHandler> streamHandlers = new ConcurrentHashMap<>();
+    // 오디오 출력 콜백 (sessionId → Consumer)
+    private final Map<String, Consumer<byte[]>> audioCallbacks = new ConcurrentHashMap<>();
     
     public VoiceConversationGrpcService(ManagedChannel aiServiceChannel) {
         this.channel = aiServiceChannel;
@@ -38,9 +38,13 @@ public class VoiceConversationGrpcService {
     
     /**
      * 음성 대화 스트림 시작
+     * @param sessionId 세션 ID
+     * @param userId 사용자 ID
+     * @param phoneNumber 전화번호
+     * @param audioOutputCallback AI가 생성한 음성을 받는 콜백
      */
     public void startVoiceStream(String sessionId, String userId, String phoneNumber, 
-                                  VoiceStreamHandler handler) {
+                                  Consumer<byte[]> audioOutputCallback) {
         
         log.info("Starting voice stream for session: {}", sessionId);
         
@@ -49,27 +53,25 @@ public class VoiceConversationGrpcService {
             return;
         }
         
-        // 응답 핸들러 저장
-        streamHandlers.put(sessionId, handler);
+        // 콜백 저장
+        audioCallbacks.put(sessionId, audioOutputCallback);
         
         // 응답 Observer 생성
         StreamObserver<VoiceResponse> responseObserver = new StreamObserver<VoiceResponse>() {
             @Override
             public void onNext(VoiceResponse response) {
-                handleVoiceResponse(sessionId, response, handler);
+                handleVoiceResponse(sessionId, response);
             }
             
             @Override
             public void onError(Throwable t) {
                 log.error("Voice stream error for session: {}", sessionId, t);
-                handler.onError(t);
                 cleanup(sessionId);
             }
             
             @Override
             public void onCompleted() {
                 log.info("Voice stream completed for session: {}", sessionId);
-                handler.onCompleted();
                 cleanup(sessionId);
             }
         };
@@ -83,7 +85,7 @@ public class VoiceConversationGrpcService {
             SessionConfig config = SessionConfig.newBuilder()
                 .setUserId(userId)
                 .setSessionId(sessionId)
-                .setSampleRate(16000)  // 16kHz 권장
+                .setSampleRate(16000)  // 16kHz
                 .setLanguageCode("ko-KR")
                 .setPhoneNumber(phoneNumber != null ? phoneNumber : "")
                 .build();
@@ -95,8 +97,6 @@ public class VoiceConversationGrpcService {
             requestObserver.onNext(initRequest);
             log.info("Session config sent for session: {}", sessionId);
             
-            handler.onSessionStarted(sessionId);
-            
         } catch (Exception e) {
             log.error("Failed to send session config", e);
             requestObserver.onError(e);
@@ -105,7 +105,7 @@ public class VoiceConversationGrpcService {
     }
     
     /**
-     * 오디오 데이터 전송 (Twilio -> AI)
+     * 오디오 데이터 전송 (Twilio → AI)
      */
     public void sendAudioData(String sessionId, byte[] audioData) {
         StreamObserver<VoiceRequest> stream = activeStreams.get(sessionId);
@@ -149,35 +149,39 @@ public class VoiceConversationGrpcService {
     /**
      * AI 응답 처리
      */
-    private void handleVoiceResponse(String sessionId, VoiceResponse response, VoiceStreamHandler handler) {
+    private void handleVoiceResponse(String sessionId, VoiceResponse response) {
         try {
             switch (response.getPayloadCase()) {
                 case AUDIO_OUTPUT:
                     // AI가 생성한 음성 데이터
                     byte[] audioOutput = response.getAudioOutput().toByteArray();
                     log.debug("Received {} bytes of audio output for session: {}", audioOutput.length, sessionId);
-                    handler.onAudioOutput(audioOutput);
+                    
+                    // 콜백 호출 (Twilio로 전송)
+                    Consumer<byte[]> callback = audioCallbacks.get(sessionId);
+                    if (callback != null) {
+                        callback.accept(audioOutput);
+                    }
                     break;
                     
                 case TRANSCRIPT:
                     // 사용자 음성의 텍스트 변환 결과 (STT)
                     String transcript = response.getTranscript();
                     log.info("User transcript for session {}: {}", sessionId, transcript);
-                    handler.onTranscript(transcript);
+                    // TODO: DB에 저장
                     break;
                     
                 case AI_RESPONSE:
                     // AI의 텍스트 응답
                     String aiResponse = response.getAiResponse();
                     log.info("AI response for session {}: {}", sessionId, aiResponse);
-                    handler.onAIResponse(aiResponse);
+                    // TODO: DB에 저장
                     break;
                     
                 case IS_FINAL:
                     // 대화 턴 종료 신호
                     boolean isFinal = response.getIsFinal();
                     log.debug("Is final flag for session {}: {}", sessionId, isFinal);
-                    handler.onTurnComplete(isFinal);
                     break;
                     
                 case PAYLOAD_NOT_SET:
@@ -194,7 +198,7 @@ public class VoiceConversationGrpcService {
      */
     private void cleanup(String sessionId) {
         activeStreams.remove(sessionId);
-        streamHandlers.remove(sessionId);
+        audioCallbacks.remove(sessionId);
         log.debug("Cleaned up session: {}", sessionId);
     }
     
@@ -212,19 +216,6 @@ public class VoiceConversationGrpcService {
         return activeStreams.size();
     }
     
-    /**
-     * 음성 스트림 이벤트 핸들러 인터페이스
-     */
-    public interface VoiceStreamHandler {
-        void onSessionStarted(String sessionId);
-        void onAudioOutput(byte[] audioData);
-        void onTranscript(String text);
-        void onAIResponse(String text);
-        void onTurnComplete(boolean isFinal);
-        void onError(Throwable t);
-        void onCompleted();
-    }
-    
     @PreDestroy
     public void shutdown() {
         log.info("Shutting down Voice Conversation gRPC service");
@@ -239,7 +230,7 @@ public class VoiceConversationGrpcService {
         });
         
         activeStreams.clear();
-        streamHandlers.clear();
+        audioCallbacks.clear();
         
         // 채널 종료
         try {
