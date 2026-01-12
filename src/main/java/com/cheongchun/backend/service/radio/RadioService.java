@@ -1,4 +1,4 @@
-package com.cheongchun.backend.service.Radio;
+package com.cheongchun.backend.service.radio;
 
 import com.cheongchun.backend.entity.DailyQuestion;
 import com.cheongchun.backend.entity.RadioStory;
