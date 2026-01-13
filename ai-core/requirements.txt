@@ -36,3 +36,6 @@ accelerate==0.25.0
 TTS==0.22.0
 torch>=2.1.2
 torchaudio>=2.1.2
+pymysql 
+python-dotenv
+SQLAlchemy
