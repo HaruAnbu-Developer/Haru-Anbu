@@ -20,7 +20,8 @@ class TTSService:
         model_name: str = "tts_models/multilingual/multi-dataset/xtts_v2",
         device: Optional[str] = None,
         # speaker_wav: str = "/Users/namung2/haru/Haru-Anbu/ai-core/studio_origin/W-SO-1/sample1.wav",
-        speaker_wav: str = "/home/namung/ai-core/Haru-Anbu/ai-core/data/studio_origin/W-SO-1/sample1.wav",
+        # speaker_wav: str = "/home/namung/ai-core/Haru-Anbu/ai-core/data/studio_origin/W-SO-1/sample1.wav",
+        speaker_wav: str = r"C:\Haru-Anbu\ai-core\data\studio_origin\W-SO-1\sample1.wav",
         language: str = "ko"
     ):
         """
@@ -33,17 +34,9 @@ class TTSService:
         self.model_name = model_name
         self.language = language
         self.speaker_wav = speaker_wav
+        self.device = device if device else ("cuda" if torch.cuda.is_available() else "cpu")
 
-        if device is None:
-            if torch.backends.mps.is_available():
-                self.device = "mps"
-            elif torch.cuda.is_available():
-                self.device = "cuda"
-            else:
-                self.device = "cpu"
-        else:
-            self.device = device
-
+        
         self.tts = None
         self.sample_rate = 22050
 
@@ -152,6 +145,7 @@ class TTSService:
             text = text[:200]
 
         return text
+    
 
     # ------------------------------------------------------------------------------------
     # BATCH
@@ -185,17 +179,37 @@ class TTSService:
         }
         return info
 
-
+    
     def save_audio(self, audio: np.ndarray, file_path: str, sample_rate: Optional[int] = None):
+        """파일(.wav)로 변환하는 함수"""
         sr = sample_rate or self.sample_rate
         Path(file_path).parent.mkdir(parents=True, exist_ok=True)
         sf.write(file_path, audio, sr)
+
+
 
     def unload_model(self):
         if self.tts:
             del self.tts
             self.tts = None
             logger.info("TTS model unloaded")
+    def synthesize_streaming_real(self, text: str):
+        """
+        문장 전체를 기다리지 않고 생성되는 즉시 오디오 조각(chunk)을 반환합니다.{26/01/12}
+        """
+        text = self._preprocess_text(text)
+        
+        # XTTS v2의 stream_inference 제너레이터 사용
+        chunks = self.tts.model.inference_stream(
+            text=text,
+            language=self.language,
+            speaker_cond_set=self.tts.speaker_manager.speakers[self.tts.speaker_manager.speaker_names[0]]["embedding"], # 내부 임베딩 참조
+            gpt_cond_latent=self.tts.speaker_manager.speakers[self.tts.speaker_manager.speaker_names[0]]["gpt_cond_latent"]
+        )
+
+        for chunk in chunks:
+            # chunk는 torch.Tensor 형태이므로 numpy로 변환
+            yield chunk.cpu().numpy()
 
 
 # Singleton
