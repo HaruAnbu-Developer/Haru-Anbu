@@ -2,9 +2,9 @@ import os
 import time
 import logging
 from typing import Dict, Any, Optional
-from services.stt.stt_service import STTService
-from services.llm.llm_service_Gemma_stream import LLMService
-from services.tts.tts_service import TTSService   # 🔥 TTS 서비스 추가
+from services.STT.stt_service import STTService
+from services.LLM.llm_service_Gemma_stream import LLMService
+from services.TTS.tts_service import TTSService   # 🔥 TTS 서비스 추가
 import numpy as np
 import re  # 정규표현식(특수문자 제거)을 위해 필요합니다!
 logger = logging.getLogger(__name__)
