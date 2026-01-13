@@ -3,8 +3,10 @@ import time
 import logging
 from typing import Dict, Any, Optional
 from services.stt.stt_service import STTService
-from services.llm.llm_service_polyglot import LLMService
+from services.llm.llm_service_Gemma_stream import LLMService
 from services.tts.tts_service import TTSService   # 🔥 TTS 서비스 추가
+import numpy as np
+import re  # 정규표현식(특수문자 제거)을 위해 필요합니다!
 logger = logging.getLogger(__name__)
 
 
@@ -23,75 +25,58 @@ class VoiceConversationPipeline:
         logger.info("Initializing Voice Conversation Pipeline...")
         
         self.stt = STTService(model_size=stt_model)
-        self.llm = LLMService(model_name=llm_model)
+        self.llm = LLMService(model_path=llm_model)
         self.tts = TTSService(model_name=tts_model)   # 🔥 TTS 추가
         
         logger.info("Pipeline ready!")
     
-    def process_audio(
+    def process_audio_stream(
         self,
         audio_path: Optional[str] = None,
-        audio_data: Optional[Any] = None,
-        user_name: str = "어르신"
-    ) -> Dict[str, Any]:
+        audio_data: Optional[Any] = None
+    ):
         """
-        음성 → 텍스트 → LLM → 음성(TTS)
+        STT -> LLM(Streaming) -> TTS(Sentence by Sentence) 파이프라인
         """
-        total_start = time.time()
-        
-        # 1. STT
+        # 1. STT (사용자 음성을 텍스트로)
         logger.info("Processing STT...")
-        stt_result = self.stt.transcribe(
-            audio_path=audio_path,
-            audio_data=audio_data
-        )
-        
+        stt_result = self.stt.transcribe(audio_path=audio_path, audio_data=audio_data)
         user_text = stt_result["text"]
-        stt_duration = stt_result["duration"]
-        logger.info(f"STT output: {user_text}")
         
-        # 2. LLM
-        logger.info("Processing LLM...")
-        llm_result = self.llm.generate(
-            user_input=user_text,
-            user_name=user_name
-        )
-        
-        ai_response = llm_result["response"]
-        llm_duration = llm_result["duration"]
-        logger.info(f"LLM output: {ai_response}")
+        # UI에 사용자 텍스트를 먼저 보여주기 위해 yield
+        yield {"type": "user_text", "content": user_text}
 
-        # 3. TTS (AI 응답 → 음성)
-        logger.info("Processing TTS...")
-        # tts_output_path = "/Users/namung2/haru/Haru-Anbu/ai-core/outputs/tts_response2.wav"
-        tts_output_path = "./outputs/tts_response2.wav"
-        tts_result = self.tts.synthesize(
-            text=ai_response,
-            save_path=tts_output_path
-        )
+        # 2. LLM 스트리밍 시작
+        logger.info("Starting LLM streaming...")
+        full_response = ""
+        
+        # LLMService의 generate_stream 호출
+        for sentence in self.llm.generate_stream(user_text):
+            # 문장 내 불필요한 이모티콘/특수문자 제거 (TTS 오류 방지)
+            clean_sentence = re.sub(r'[^가-힣a-zA-Z0-9\s.\?\!\,]', '', sentence).strip()
+            if not clean_sentence:
+                continue
 
-        tts_duration = tts_result["duration"]
-        logger.info(f"TTS saved to: {tts_output_path}")
-        
-        # 4. 전체 성능
-        total_duration = time.time() - total_start
-        
-        result = {
-            "user_text": user_text,
-            "ai_response": ai_response,
-            "stt_duration": stt_duration,
-            "llm_duration": llm_duration,
-            "tts_duration": tts_duration,
-            "total_duration": total_duration,
-            "tts_file": tts_output_path      # 🔥 wav 파일 반환
-        }
-        
-        if total_duration > 1.8:
-            logger.warning(f"Pipeline slow: {total_duration:.3f}s (target: 1.8s)")
-        else:
-            logger.info(f"Pipeline completed in {total_duration:.3f}s")
-        
-        return result
+            # 3. TTS 생성 (문장 단위로 즉시 연산)
+            wav_list = self.tts.tts.synthesizer.tts(
+                clean_sentence,
+                None,
+                self.tts.language,
+                self.tts.speaker_wav
+            )
+            
+            full_response += clean_sentence + " "
+            
+            # 오디오 데이터와 함께 문장 반환
+            yield {
+                "type": "audio_chunk",
+                "ai_sentence": clean_sentence,
+                "audio": np.array(wav_list)
+            }
+
+        # 대화 기록 저장 (히스토리 관리)
+        self.llm.conversation_history.append({"role": "user", "content": user_text})
+        self.llm.conversation_history.append({"role": "assistant", "content": full_response.strip()})
     
     def clear_conversation(self):
         self.llm.clear_history()
@@ -113,7 +98,7 @@ def main():
     
     pipeline = VoiceConversationPipeline(
         stt_model="base",
-        llm_model="EleutherAI/polyglot-ko-1.3b"
+        llm_model="./models/llm/gemma-2-9b-it-Q5_K_M.gguf"
     )
     
     # 테스트용 오디오 파일

@@ -2,15 +2,18 @@
 .env
 .env.local
 .env.*.local
-
+ai-core/data/*
+ai-core/.venv/*
+ai-core/.venvw/*
+.venvw/*
 # Python
-__pycache__/
+ai_core/__pycache__/*
 *.py[cod]
 *$py.class
 *.so
 .Python
 env/
-venv/
+.venv/
 ENV/
 build/
 develop-eggs/
@@ -33,9 +36,8 @@ MANIFEST
 ai-core/studio_origin/*
 
 # Model files (too large for GitHub)
-ai-core/models/whisper/*.pt
+ai-core/models/*
 ai-core/services/stt/models/whisper/*.pt
-models/*
 
 # PyCharm
 .idea/
