@@ -3,6 +3,7 @@ package com.haru_anbu.CallManager.call.repository;
 import com.haru_anbu.CallManager.call.entity.CallSession;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
@@ -21,11 +22,17 @@ public interface CallSessionRepository extends JpaRepository<CallSession, Long> 
     List<CallSession> findByUserIdAndStatus(String userId, CallSession.CallStatus status);
     
     @Query("SELECT c FROM CallSession c WHERE c.userId = :userId AND c.startedAt >= :startDate ORDER BY c.startedAt DESC")
-    List<CallSession> findRecentCallsByUserId(String userId, LocalDateTime startDate);
+    List<CallSession> findRecentCallsByUserId(
+        @Param("userId") String userId, 
+        @Param("startDate") LocalDateTime startDate
+    );
     
     @Query("SELECT c FROM CallSession c WHERE c.status = :status AND c.startedAt < :before")
-    List<CallSession> findStaleSessionsByStatus(CallSession.CallStatus status, LocalDateTime before);
+    List<CallSession> findStaleSessionsByStatus(
+        @Param("status") CallSession.CallStatus status, 
+        @Param("before") LocalDateTime before
+    );
     
     @Query("SELECT COUNT(c) FROM CallSession c WHERE c.userId = :userId AND c.status = 'IN_PROGRESS'")
-    long countActiveCallsByUserId(String userId);
+    long countActiveCallsByUserId(@Param("userId") String userId);
 }
