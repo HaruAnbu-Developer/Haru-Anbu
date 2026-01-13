@@ -1,0 +1,39 @@
+# 테스트용 설정 파일
+# src/main/resources/application-test.yml
+
+spring:
+  datasource:
+    # 테스트용 H2 인메모리 DB (MySQL 대신 사용 가능)
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+    
+  jpa:
+    hibernate:
+      ddl-auto: create-drop  # 테스트 시작/종료 시 테이블 생성/삭제
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.H2Dialect
+
+# gRPC 테스트용 설정 (Mock 서버 사용)
+grpc:
+  ai-service:
+    host: localhost
+    port: 50051
+
+# Twilio 테스트용 설정 (실제 호출 안 함)
+twilio:
+  account-sid: AC_test_account
+  auth-token: test_auth_token
+  phone-number: +15005550006  # Twilio 테스트 번호
+  webhook-base-url: http://localhost:8080
+
+# 로깅 레벨
+logging:
+  level:
+    com.haru_anbu: DEBUG
+    org.hibernate.SQL: DEBUG
+    
