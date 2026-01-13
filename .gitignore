@@ -6,6 +6,7 @@ ai-core/data/*
 ai-core/.venv/*
 ai-core/.venvw/*
 .venvw/*
+ai-core/.venvw.zip
 # Python
 ai_core/__pycache__/*
 *.py[cod]
