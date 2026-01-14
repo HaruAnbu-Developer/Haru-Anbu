@@ -1,7 +1,7 @@
 import enum
 from sqlalchemy import Column, Integer, String, Text, Float, DateTime, JSON, Boolean, Enum as SqlEnum
-from sqlalchemy.sql import func # func 임포트 추가 (기존 코드 누락됨)
-from database import Base # database.py의 Base 상속
+from sqlalchemy.sql import func
+from database.database import Base # database.py의 Base 상속
 
 class StatusEnum(enum.Enum): # 파이썬 enum.Enum 상속
     PENDING = "PENDING"
