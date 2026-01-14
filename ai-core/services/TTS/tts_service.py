@@ -186,8 +186,6 @@ class TTSService:
         Path(file_path).parent.mkdir(parents=True, exist_ok=True)
         sf.write(file_path, audio, sr)
 
-
-
     def unload_model(self):
         if self.tts:
             del self.tts
@@ -210,7 +208,33 @@ class TTSService:
         for chunk in chunks:
             # chunk는 torch.Tensor 형태이므로 numpy로 변환
             yield chunk.cpu().numpy()
-
+            
+            
+#----------------------------------------------------------------------------------
+    def extract_latents(self, audio_path: str) -> Dict[str, Any]:
+        """
+        S3 등에서 다운로드한 wav 파일로부터 XTTS 전용 특징(Latent)을 추출합니다.
+        """
+        try:
+            logger.info(f"Extracting latents from: {audio_path}")
+            if hasattr(self.tts, "synthesizer"):
+                # synthesizer 객체를 통해 실제 모델에 접근
+                gpt_cond_latent, speaker_embedding = self.tts.synthesizer.tts_model.get_conditioning_latents(
+                    audio_path=audio_path
+                )
+            else:
+                # 혹시 모르니 다른 접근 방식도 대비 (직접 모델을 로드한 경우)
+                gpt_cond_latent, speaker_embedding = self.tts.model.get_conditioning_latents(
+                    audio_path=audio_path
+                )
+                
+            return {
+                "gpt_cond_latent": gpt_cond_latent,
+                "speaker_embedding": speaker_embedding
+            }
+        except Exception as e:
+            logger.error(f"Latent extraction failed: {e}")
+            raise
 
 # Singleton
 _tts_service_instance: Optional[TTSService] = None

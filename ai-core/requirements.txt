@@ -39,3 +39,4 @@ torchaudio>=2.1.2
 pymysql 
 python-dotenv
 SQLAlchemy
+doto3

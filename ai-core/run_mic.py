@@ -103,24 +103,6 @@ class MicrophoneInterface:
                             print(f"🤖 AI: {result['ai_sentence']}")
                             self.play_audio(result['audio'])
                             
-                # # 2. 파이프라인 처리 및 즉시 재생
-                # if is_speaking:
-                #     logger.info("음성을 처리 중입니다...")
-                #     audio_np = np.concatenate(frames).astype(np.float32) / 32768.0
-                    
-                #     # run.py의 수정된 결과값(tts_audio 포함)을 받습니다.
-                #     result = self.pipeline.process_audio(audio_data=audio_np)
-                    
-                #     print(f"\n👴 어르신: {result['user_text']}")
-                #     print(f"🤖 AI: {result['ai_response']}")
-                    
-                #     # 🔥 추가: 파일 저장 대기 없이 여기서 바로 재생!
-                #     if 'tts_audio' in result:
-                #         logger.info("🔊 AI 목소리 출력 중...")
-                #         self.play_audio(result['tts_audio'])
-
-                #     print(f"⏱️ 지연 시간: {result['total_duration']:.3f}s (STT: {result['stt_duration']:.3f}s / LLM: {result['llm_duration']:.3f}s / TTS: {result['tts_duration']:.3f}s)")
-
         except KeyboardInterrupt:
             logger.info("대화를 종료합니다.")
         finally:

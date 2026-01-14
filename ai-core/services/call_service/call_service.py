@@ -1,8 +1,8 @@
 import asyncio
 import logging
 import grpc
-import voice_stream_pb2
-import voice_stream_pb2_grpc
+import server.grpc.voice_stream_pb2 as voice_stream_pb2
+import server.grpc.voice_stream_pb2_grpc as voice_stream_pb2_grpc
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
