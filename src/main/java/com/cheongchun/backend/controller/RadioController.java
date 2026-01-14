@@ -3,7 +3,7 @@ package com.cheongchun.backend.controller;
 import com.cheongchun.backend.entity.DailyQuestion;
 import com.cheongchun.backend.entity.RadioStory;
 import com.cheongchun.backend.entity.User;
-import com.cheongchun.backend.service.Radio.RadioService;
+import com.cheongchun.backend.service.radio.RadioService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;

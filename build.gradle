@@ -20,7 +20,7 @@ repositories {
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    // implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     // 스프링 시큐리티 Oauth2 클라이언트 사용을 위함.
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
 
@@ -44,8 +44,8 @@ dependencies {
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 
-    runtimeOnly 'org.postgresql:postgresql' //데이터 베이스
-    implementation 'com.google.cloud.sql:postgres-socket-factory:1.18.0' // Cloud SQL Connector
+    runtimeOnly 'com.mysql:mysql-connector-j' // MySQL 데이터베이스
+    // implementation 'com.google.cloud.sql:mysql-socket-factory:1.18.0' // Cloud SQL Connector (필요시 주석 해제)
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
