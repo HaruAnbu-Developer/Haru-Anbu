@@ -6,9 +6,7 @@ from dotenv import load_dotenv
 
 # .env 파일 위치를 명확히 지정하거나 실행 경로에서 읽도록 로드
 load_dotenv()
-
-from database.schema import VoiceProfile, StatusEnum
-from services.TTS.tts_service import get_tts_service # 기존 서비스 임포트
+from services.tts.tts_service import get_tts_service # 기존 서비스 임포트
 
 class VoiceProcessor:
     def __init__(self):
@@ -27,9 +25,12 @@ class VoiceProcessor:
         # 싱글톤으로 관리되는 기존 TTS 서비스 가져오기
         self.tts_service = get_tts_service()
 
-    async def extract_and_save_latent(self, db_session, user_id: str):
+    async def extract_and_save_latent(self, user_id: str):
+        from database.schema import VoiceProfile, StatusEnum
+        from database.database import SessionLocal
+        db_session = SessionLocal()
         profile = db_session.query(VoiceProfile).filter(VoiceProfile.user_id == user_id).first()
-        if not profile: return
+        if not profile or not profile.raw_wav_path: return
 
         temp_wav = f"temp_{user_id}.wav"
         local_latent_path = f"{user_id}_latent.pth"
