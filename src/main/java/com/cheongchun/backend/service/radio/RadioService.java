@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -19,7 +20,7 @@ public class RadioService {
 
     private final DailyQuestionRepository dailyQuestionRepository;
     private final RadioStoryRepository radioStoryRepository;
-    private final UserRepository userRepository; // To fetch current user if needed, or valid user
+    private final UserRepository userRepository;
 
     /**
      * 오늘의 질문 가져오기
@@ -31,20 +32,31 @@ public class RadioService {
     }
 
     /**
-     * 사연 제출하기
+     * 사연 제출하기 (앱에서 직접 제출 시)
      */
     @Transactional
     public RadioStory submitStory(User user, Long questionId, String content) {
         DailyQuestion question = dailyQuestionRepository.findById(questionId)
                 .orElseThrow(() -> new IllegalArgumentException("Question not found with id: " + questionId));
+        
+        // Topic ID가 없으면 에러 혹은 기본값 처리 (여기서는 필수라고 가정)
+        if (question.getTopicId() == null) {
+            throw new IllegalStateException("Question does not have a linked topic ID.");
+        }
 
-        RadioStory story = new RadioStory(user, question, content);
+        RadioStory story = new RadioStory();
+        story.setTopicId(question.getTopicId());
+        story.setUserId(user.getUsername()); // String(50)에 username 매핑
+        story.setAnswerText(content);
+        story.setIsShared(true); // 제출 시 기본적으로 공유 동의라고 가정 (혹은 파라미터로 받아야 함)
+        story.setBroadcastDate(LocalDateTime.now().plusDays(1)); // 예: 다음날 방송
+        
         return radioStoryRepository.save(story);
     }
 
     /**
-     * 특정 날짜의 질문에 대한 사연들(라디오 콘텐츠) 가져오기
-     * 보통 "어제"의 질문에 대한 답변들을 "오늘" 라디오로 듣기 때문에 date 파라미터가 유동적일 수 있음.
+     * 특정 날짜의 라디오 사연들 가져오기
+     * (해당 날짜에 답변된 질문의 Topic ID로 조회)
      */
     @Transactional(readOnly = true)
     public List<RadioStory> getRadioStoriesForDate(LocalDate date) {
@@ -52,7 +64,12 @@ public class RadioService {
         DailyQuestion question = dailyQuestionRepository.findByTargetDate(date)
                 .orElseThrow(() -> new IllegalArgumentException("No question found for date: " + date));
 
-        // 2. 그 질문에 달린 사연들을 가져옴
-        return radioStoryRepository.findByQuestionId(question.getId());
+        // 2. 그 질문의 Topic ID로 사연들을 검색
+        String topicId = question.getTopicId();
+        if (topicId == null) {
+            return List.of();
+        }
+        
+        return radioStoryRepository.findByTopicId(topicId);
     }
 }

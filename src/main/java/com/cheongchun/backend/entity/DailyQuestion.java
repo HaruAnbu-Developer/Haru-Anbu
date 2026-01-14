@@ -31,6 +31,9 @@ public class DailyQuestion {
     @Column(nullable = false, unique = true)
     private LocalDate targetDate; // 질문이 노출되는 날짜
 
+    @Column(name = "topic_id", length = 50)
+    private String topicId; // AI 팀의 토픽 ID (예: "FIRST_SALARY")
+
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
@@ -39,8 +42,9 @@ public class DailyQuestion {
         createdAt = LocalDateTime.now();
     }
 
-    public DailyQuestion(String content, LocalDate targetDate) {
+    public DailyQuestion(String content, LocalDate targetDate, String topicId) {
         this.content = content;
         this.targetDate = targetDate;
+        this.topicId = topicId;
     }
 }

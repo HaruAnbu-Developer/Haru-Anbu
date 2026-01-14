@@ -2,17 +2,15 @@ package com.cheongchun.backend.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.time.LocalDateTime;
 
@@ -20,35 +18,43 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(name = "radio_stories")
-public class RadioStory {
+@Table(name = "community_radio_topics")
+public class RadioStory { // AI 팀의 CommunityRadioTopic 스키마와 매핑
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    @Column(name = "topic_id", length = 50)
+    private String topicId; // 예: "FIRST_SALARY" (첫 월급 주제)
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "question_id", nullable = false)
-    private DailyQuestion question;
+    @Column(name = "user_id", nullable = false, length = 50)
+    private String userId; // 답변한 어르신 ID (문자열로 저장됨)
 
-    @Column(nullable = false, columnDefinition = "TEXT")
-    private String content; // 사용자 답변 (예: "첫 월급으로 부모님 내복 사드렸지")
+    @Column(name = "answer_text", nullable = false, columnDefinition = "TEXT")
+    private String answerText; // "나는 정장을 맞췄어"
 
-    @Column(nullable = false)
+    @Column(name = "is_shared", nullable = false)
+    @ColumnDefault("false")
+    private Boolean isShared = false; // 방송 공유 동의 여부
+
+    @Column(name = "broadcast_date")
+    private LocalDateTime broadcastDate; // 방송 예정일
+
+    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
     }
 
-    public RadioStory(User user, DailyQuestion question, String content) {
-        this.user = user;
-        this.question = question;
-        this.content = content;
+    public RadioStory(String topicId, String userId, String answerText, LocalDateTime broadcastDate) {
+        this.topicId = topicId;
+        this.userId = userId;
+        this.answerText = answerText;
+        this.broadcastDate = broadcastDate;
     }
 }
