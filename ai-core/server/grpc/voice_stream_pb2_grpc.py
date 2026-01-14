@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from grpc import voice_stream_pb2 as grpc_dot_voice__stream__pb2
+from server.grpc import voice_stream_pb2 as grpc_dot_voice__stream__pb2
 
 GRPC_GENERATED_VERSION = '1.76.0'
 GRPC_VERSION = grpc.__version__
