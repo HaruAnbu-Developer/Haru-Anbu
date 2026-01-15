@@ -44,6 +44,9 @@ class LatentManager:
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
             print(f"🗑️ {user_id} 메모리 해제 완료")
+        
+        
+# 라디오 목소리 .pth 불르는 메소드 필요함
             
 # 싱글톤
 _latent_manager_instance = None

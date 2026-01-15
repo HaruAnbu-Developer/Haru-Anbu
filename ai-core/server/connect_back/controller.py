@@ -7,6 +7,8 @@ from services.voice_training_service.latent_manager import get_latent_manager
 from database.schema import VoiceProfile, StatusEnum 
 from database.database import get_db ,SessionLocal
 from sqlalchemy.orm import Session
+from services.radio_service.question_generator import QuestionGenerator
+from services.llm.llm_service_Gemma_stream import get_llm_service
 
 app = FastAPI()
 voice_processor = VoiceProcessor() # 전용 객체 생성
@@ -59,3 +61,11 @@ async def release_voice(user_id: str):
     # 4. 통화 종료 후 메모리 반환
     latent_manager.release_user(user_id)
     return {"status": "released"}
+
+@app.post("/test/daily-question")
+async def test_question():
+    llm_service = get_llm_service()
+    
+    generator = QuestionGenerator(llm_service) # 이미 생성된 llm_service 주입
+    question = await generator.generate_and_save_daily_question()
+    return {"today_question": question}

@@ -1,11 +1,10 @@
 import enum
-from sqlalchemy import Column, Integer, String, Text, Float, DateTime, JSON, Boolean, Enum as SqlEnum
+from sqlalchemy import Column, Integer, String, Text, Date, DateTime, JSON, Boolean, Enum as SqlEnum
 from sqlalchemy.sql import func
 from database.database import Base # database.py의 Base 상속
 
 class StatusEnum(enum.Enum): # 파이썬 enum.Enum 상속
-    PENDING = "PENDING"
-    PROCESSING = "PROCESSING"
+    PENDING = "PENDING"    
     READY = "READY"
     FAILED = "FAILED"
 
@@ -67,3 +66,31 @@ class CommunityRadioTopic(Base):
     is_shared = Column(Boolean, default=False)     # 방송 공유 동의 여부 (개인정보 보호 )
     broadcast_date = Column(DateTime)              # 방송 예정일 (다음날 아침 등)
     created_at = Column(DateTime, default=func.now())
+    
+# 오늘 새로 추가한 스키마
+class DailyQuestion(Base):
+    """매일 업데이트되는 오늘의 공통 질문 (단일 레코드)"""
+    __tablename__ = "daily_question"
+    
+    id = Column(Integer, primary_key=True, default=1) # 무조건 1번
+    question_content = Column(String(500), nullable=False)
+    category = Column(String(50))
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+class DailyRadioContent(Base):
+    """라디오 대본 생성을 위한 유저별 공통 질문 답변 보관함"""
+    __tablename__ = "daily_radio_content"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(50), nullable=False)
+    target_date = Column(Date, nullable=False)  # 어느 날의 답변인지
+    
+    # 공통 질문과 그에 대한 답변
+    # 예: "오늘 점심 뭐 드셨어요?" -> "김치찌개"
+    common_question = Column(String(255))
+    user_answer = Column(Text)
+    
+    # 라디오 생성 여부 (중복 생성 방지)
+    is_processed = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=func.now())
+    
