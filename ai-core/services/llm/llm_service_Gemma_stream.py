@@ -1,9 +1,11 @@
+#services/llm/llm_service_Gemma_stream.py
+
 import time
 import logging
 from typing import Optional, Dict, Any, List
 from llama_cpp import Llama
-import re # 상단에 추가
-
+import re 
+import json
 logger = logging.getLogger(__name__)
 
 class LLMService:
@@ -82,5 +84,60 @@ class LLMService:
             # 전체 답변에서 이모티콘 제거 후 저장
             clean_full = re.sub(r'[^가-힣a-zA-Z0-9\s.\?\!\,]', '', full_response).strip()
             self.conversation_history.append({"role": "model", "content": clean_full})
+            
     def clear_history(self):
         self.conversation_history.clear()
+            
+    
+    # --- 새로 추가할 ask_json 메서드 --- 
+    async def ask_json(self, prompt_text: str) -> Dict[str, Any]:
+        """질문을 던지고 JSON 결과만 파싱하여 반환"""
+        
+        # 1. Gemma-2 전용 JSON 유도 프롬프트
+        # 모델에게 JSON 외의 말은 하지 말라고 엄격하게 지시합니다.
+        formatted_prompt = (
+            f"<start_of_turn>user\n"
+            f"지시사항: 반드시 다음 형식을 지킨 JSON 데이터만 출력하세요. 다른 설명은 절대 하지 마세요.\n"
+            f"형식: {{\"category\": \"...\", \"question\": \"...\"}}\n"
+            f"내용: {prompt_text}<end_of_turn>\n"
+            f"<start_of_turn>model\n{{" # '{'를 미리 입력해두어 JSON 시작을 강제함
+        )
+
+        output = self.llm(
+            formatted_prompt,
+            max_tokens=256,
+            stop=["<end_of_turn>", "}"], # '}'가 나오면 바로 멈추게 설정
+            temperature=0.2,            # 형식을 위해 온도를 낮춤
+            echo=False,
+            stream=False
+        )
+        
+        # 모델 출력값 복구 (미리 넣은 '{'와 멈춘 '}'를 다시 결합)
+        raw_text = "{" + output["choices"][0]["text"].strip()
+        if not raw_text.endswith("}"):
+            raw_text += "}"
+
+        try:
+            # 2. 정규식으로 순수 JSON 블록만 추출 (혹시 모를 앞뒤 설명 제거)
+            match = re.search(r"(\{.*\})", raw_text, re.DOTALL)
+            if match:
+                return json.loads(match.group(1))
+            else:
+                raise ValueError("JSON 형식을 찾을 수 없음")
+
+        except Exception as e:
+            logger.error(f"❌ JSON 파싱 에러: {e} | Raw: {raw_text}")
+            # 대비책(Fallback): 질문 생성 실패 시 기본 질문 반환
+            return {
+                "category": "기본",
+                "question": "오늘 하루 기분은 어떠신가요?"
+            }
+
+_llm_service_instance = None
+
+def get_llm_service() -> LLMService:
+    global _llm_service_instance
+    if _llm_service_instance is None:
+        # 모델 경로는 본인의 환경에 맞게 수정
+        _llm_service_instance = LLMService(model_path="../../models/llm/gemma-2-9b-it-Q5_K_M.gguf")
+    return _llm_service_instance

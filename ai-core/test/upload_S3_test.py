@@ -20,8 +20,8 @@ def upload_sample_voice():
         region_name=region
     )
     
-    local_file = "test.wav" 
-    s3_key = "uploads/test_user_1/test.wav"
+    local_file = "ai_voice.wav" 
+    s3_key = "uploads/radio_voice_1/radio_voice_1.wav"
     
     try:
         if not os.path.exists(local_file):

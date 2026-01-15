@@ -35,9 +35,8 @@ class VoiceProcessor:
         temp_wav = f"temp_{user_id}.wav"
         local_latent_path = f"{user_id}_latent.pth"
         s3_latent_key = f"latents/{user_id}/{user_id}_latent.pth"
-
         try:
-            profile.status = StatusEnum.PROCESSING
+            profile.status = StatusEnum.PENDING
             db_session.commit()
 
             # 1. S3에서 파일 다운로드

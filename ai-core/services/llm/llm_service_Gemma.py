@@ -2,7 +2,6 @@ import time
 import logging
 from typing import Optional, Dict, Any, List
 from llama_cpp import Llama
-import re # 상단에 추가
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +52,6 @@ class LLMService:
             f"<start_of_turn>model\n"
         )
 
-        # 텍스트 생성 (지연 시간을 위해 non-streaming으로 결과만 반환하거나 
-        # 필요시 스트리밍으로 구조 변경 가능)
         output = self.llm(
             prompt,
             max_tokens=128,
@@ -76,5 +73,3 @@ class LLMService:
             "tokens": output["usage"]["completion_tokens"]
         }
 
-    def clear_history(self):
-        self.conversation_history.clear()
