@@ -2,14 +2,15 @@ package com.cheongchun.backend.oauth.service;
 
 import com.cheongchun.backend.user.domain.SocialAccount;
 import com.cheongchun.backend.user.domain.User;
-import com.cheongchun.backend.oauth.domain.OAuth2UserInfo;
 import com.cheongchun.backend.user.service.UserLookupService;
 import com.cheongchun.backend.user.service.UserCreationService;
 import com.cheongchun.backend.user.service.UserRegistrationService;
+
+import com.cheongchun.backend.oauth.domain.OAuth2UserInfo;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.util.Optional;
 
 /**

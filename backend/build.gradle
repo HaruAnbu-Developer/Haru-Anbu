@@ -37,8 +37,8 @@ dependencies {
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
 
-	// MySQL
-	runtimeOnly 'com.mysql:mysql-connector-j'
+	// MariaDB JDBC (MySQL 호환, 인증 플러그인 이슈 없음)
+	runtimeOnly 'org.mariadb.jdbc:mariadb-java-client:3.3.2'
 
 	// Development
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'

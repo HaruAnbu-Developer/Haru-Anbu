@@ -2,6 +2,7 @@ package com.cheongchun.backend.token.repository;
 
 import com.cheongchun.backend.token.domain.RefreshToken;
 import com.cheongchun.backend.user.domain.User;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;

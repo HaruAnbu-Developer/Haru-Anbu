@@ -1,9 +1,11 @@
 package com.cheongchun.backend.oauth.service;
 
-import com.cheongchun.backend.global.security.CustomOAuth2User;
 import com.cheongchun.backend.oauth.domain.OAuth2UserInfo;
 import com.cheongchun.backend.oauth.domain.OAuth2UserInfoFactory;
 import com.cheongchun.backend.oauth.service.OAuth2UserStrategy;
+
+import com.cheongchun.backend.global.security.CustomOAuth2User;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;

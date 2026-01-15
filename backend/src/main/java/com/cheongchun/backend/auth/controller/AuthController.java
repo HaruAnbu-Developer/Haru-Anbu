@@ -2,16 +2,19 @@ package com.cheongchun.backend.auth.controller;
 
 import com.cheongchun.backend.auth.dto.request.LoginRequest;
 import com.cheongchun.backend.auth.dto.request.SignUpRequest;
-import com.cheongchun.backend.global.common.dto.ApiResponse;
+import com.cheongchun.backend.auth.service.AuthService;
+import com.cheongchun.backend.auth.service.EmailVerificationService;
+
 import com.cheongchun.backend.user.dto.UserResponse;
-import com.cheongchun.backend.token.domain.RefreshToken;
 import com.cheongchun.backend.user.domain.User;
 import com.cheongchun.backend.user.mapper.UserMapper;
-import com.cheongchun.backend.auth.service.AuthService;
+
+import com.cheongchun.backend.token.domain.RefreshToken;
 import com.cheongchun.backend.token.service.RefreshTokenService;
-import com.cheongchun.backend.global.security.JwtUtil;
+
+import com.cheongchun.backend.global.common.dto.ApiResponse;
 import com.cheongchun.backend.global.common.util.ControllerUtils;
-import com.cheongchun.backend.auth.service.EmailVerificationService;
+import com.cheongchun.backend.global.security.JwtUtil;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

@@ -1,16 +1,18 @@
 package com.cheongchun.backend.auth.service;
 
 import com.cheongchun.backend.user.domain.User;
+import com.cheongchun.backend.user.repository.UserRepository;
+
 import com.cheongchun.backend.global.error.BusinessException;
 import com.cheongchun.backend.global.error.ErrorCode;
 import com.cheongchun.backend.global.security.JwtUtil;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
-import com.cheongchun.backend.user.repository.UserRepository;
 
 @Service
 public class EmailVerificationService {

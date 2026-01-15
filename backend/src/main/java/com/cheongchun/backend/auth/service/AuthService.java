@@ -2,13 +2,17 @@ package com.cheongchun.backend.auth.service;
 
 import com.cheongchun.backend.auth.dto.request.LoginRequest;
 import com.cheongchun.backend.auth.dto.request.SignUpRequest;
-import com.cheongchun.backend.user.domain.User;
 import com.cheongchun.backend.auth.domain.UserAlreadyExistsException;
 import com.cheongchun.backend.auth.domain.EmailAlreadyExistsException;
+
+import com.cheongchun.backend.user.domain.User;
+import com.cheongchun.backend.user.repository.UserRepository;
+
+import com.cheongchun.backend.token.service.RefreshTokenService;
+
 import com.cheongchun.backend.global.error.BusinessException;
 import com.cheongchun.backend.global.error.ErrorCode;
-import com.cheongchun.backend.user.repository.UserRepository;
-import com.cheongchun.backend.token.service.RefreshTokenService;
+
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;

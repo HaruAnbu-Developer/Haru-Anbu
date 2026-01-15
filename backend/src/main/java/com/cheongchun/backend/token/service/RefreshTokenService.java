@@ -1,9 +1,9 @@
 package com.cheongchun.backend.token.service;
 
-import com.cheongchun.backend.global.config.properties.JwtProperties;
 import com.cheongchun.backend.token.domain.RefreshToken;
 import com.cheongchun.backend.user.domain.User;
 import com.cheongchun.backend.token.repository.RefreshTokenRepository;
+import com.cheongchun.backend.global.config.properties.JwtProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
