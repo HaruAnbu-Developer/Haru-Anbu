@@ -93,6 +93,7 @@ public class TwilioMediaStreamHandler extends TextWebSocketHandler {
     /**
      * 2. Start 이벤트 - 스트림 시작
      */
+    // handleStart 메서드 수정
     private void handleStart(WebSocketSession session, JsonNode json) throws IOException {
         JsonNode start = json.get("start");
         String streamSid = start.get("streamSid").asText();
@@ -100,37 +101,50 @@ public class TwilioMediaStreamHandler extends TextWebSocketHandler {
         
         log.info("Stream started: streamSid={}, callSid={}", streamSid, callSid);
         
-        // WebSocket 세션 저장
         activeSessions.put(streamSid, session);
         
         try {
-            // DB에서 CallSid로 세션 찾기
             var callSession = sessionService.getSessionByTwilioCallSid(callSid);
             String sessionId = callSession.getSessionId();
             String userId = callSession.getUserId();
             String phoneNumber = callSession.getPhoneNumber();
             
-            // 매핑 저장
             streamToSession.put(streamSid, sessionId);
             sessionToStream.put(sessionId, streamSid);
             
             log.info("Mapped streamSid {} to sessionId {}", streamSid, sessionId);
             
-            // AI gRPC 스트림 시작 (콜백 등록)
+            // 🔥 개선: 텍스트 콜백 추가
             voiceGrpcService.startVoiceStream(
                 sessionId, 
                 userId, 
                 phoneNumber,
-                // AI 응답을 Twilio로 전송하는 콜백
-                audioData -> sendAudioToTwilio(sessionId, audioData)
+                // AI 음성 → Twilio
+                audioData -> sendAudioToTwilio(sessionId, audioData),
+                // STT 결과 → DB 저장
+                transcript -> saveTranscript(sessionId, "user", transcript),
+                // AI 응답 → DB 저장
+                aiResponse -> saveTranscript(sessionId, "assistant", aiResponse)
             );
             
-            // 세션 상태 업데이트
             callManagerService.onCallConnected(sessionId, userId, phoneNumber);
             
         } catch (Exception e) {
             log.error("Failed to start AI stream for callSid: {}", callSid, e);
             sendError(session, "Failed to initialize AI conversation");
+        }
+    }
+
+    /**
+     * 🔥 추가: 대화 내용 DB 저장
+     */
+    private void saveTranscript(String sessionId, String role, String text) {
+        try {
+            // TODO: 대화 내용을 DB에 저장하는 로직 구현
+            log.info("Saving transcript for session {}: [{}] {}", sessionId, role, text);
+            // 예: conversationRepository.save(new Conversation(sessionId, role, text));
+        } catch (Exception e) {
+            log.error("Failed to save transcript", e);
         }
     }
     
