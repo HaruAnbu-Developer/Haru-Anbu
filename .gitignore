@@ -16,6 +16,7 @@ ai_core/__pycache__/*
 env/
 .venv/
 ENV/
+.gradle/
 build/
 develop-eggs/
 dist/

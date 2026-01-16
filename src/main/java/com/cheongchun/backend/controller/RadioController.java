@@ -28,11 +28,11 @@ public class RadioController {
 
     // 2. 사연 제출
     @PostMapping("/story")
-    public ResponseEntity<RadioStory> submitStory(@AuthenticationPrincipal Object principal,
-            @RequestParam Long questionId,
+    public ResponseEntity<RadioService.RadioResult> submitStory(@AuthenticationPrincipal Object principal,
+            @RequestParam String topicId,
             @RequestBody String content) {
         User user = getUserFromPrincipal(principal);
-        return ResponseEntity.ok(radioService.submitStory(user, questionId, content));
+        return ResponseEntity.ok(radioService.submitStory(user, topicId, content));
     }
 
     // 3. (다음날) 라디오 사연들 조회
