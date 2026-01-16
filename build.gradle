@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.5.3'
     id 'io.spring.dependency-management' version '1.1.7'
+    id 'com.google.protobuf' version '0.9.4'
 }
 
 group = 'com.cheongchun'
@@ -39,6 +40,16 @@ dependencies {
     
     // OpenAI API
     implementation 'com.theokanning.openai-gpt3-java:service:0.18.2'
+    
+    // AWS S3
+    implementation platform('software.amazon.awssdk:bom:2.21.1')
+    implementation 'software.amazon.awssdk:s3'
+
+    // gRPC & Protobuf
+    implementation 'io.grpc:grpc-netty-shaded:1.58.0'
+    implementation 'io.grpc:grpc-protobuf:1.58.0'
+    implementation 'io.grpc:grpc-stub:1.58.0'
+    compileOnly 'org.apache.tomcat:annotations-api:6.0.53'
 
     // Lombok
     compileOnly 'org.projectlombok:lombok'
@@ -55,4 +66,20 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+}
+
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:3.24.0"
+    }
+    plugins {
+        grpc {
+            artifact = 'io.grpc:protoc-gen-grpc-java:1.58.0'
+        }
+    }
+    generateProtoTasks {
+        all()*.plugins {
+            grpc {}
+        }
+    }
 }

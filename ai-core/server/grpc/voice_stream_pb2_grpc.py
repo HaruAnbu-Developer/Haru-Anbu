@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from grpc import voice_stream_pb2 as grpc_dot_voice__stream__pb2
+from server.grpc import voice_stream_pb2 as server_dot_grpc_dot_voice__stream__pb2
 
 GRPC_GENERATED_VERSION = '1.76.0'
 GRPC_VERSION = grpc.__version__
@@ -18,7 +18,7 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + ' but the generated code in grpc/voice_stream_pb2_grpc.py depends on'
+        + ' but the generated code in server/grpc/voice_stream_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
@@ -34,18 +34,31 @@ class VoiceConversationStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.StreamConversation = channel.stream_stream(
-                '/ai.inference.VoiceConversation/StreamConversation',
-                request_serializer=grpc_dot_voice__stream__pb2.VoiceRequest.SerializeToString,
-                response_deserializer=grpc_dot_voice__stream__pb2.VoiceResponse.FromString,
+        self.GetDailyQuestion = channel.unary_unary(
+                '/ai.inference.VoiceConversation/GetDailyQuestion',
+                request_serializer=server_dot_grpc_dot_voice__stream__pb2.Empty.SerializeToString,
+                response_deserializer=server_dot_grpc_dot_voice__stream__pb2.QuestionResponse.FromString,
+                _registered_method=True)
+        self.GenerateRadioContent = channel.unary_unary(
+                '/ai.inference.VoiceConversation/GenerateRadioContent',
+                request_serializer=server_dot_grpc_dot_voice__stream__pb2.RadioRequest.SerializeToString,
+                response_deserializer=server_dot_grpc_dot_voice__stream__pb2.RadioResponse.FromString,
                 _registered_method=True)
 
 
 class VoiceConversationServicer(object):
     """Missing associated documentation comment in .proto file."""
 
-    def StreamConversation(self, request_iterator, context):
+    def GetDailyQuestion(self, request, context):
         """양방향 스트리밍: 실시간 음성 데이터를 주고받음
+        데일리 질문 생성 (LLM)
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GenerateRadioContent(self, request, context):
+        """라디오 콘텐츠 생성 (LLM + TTS)
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -54,10 +67,15 @@ class VoiceConversationServicer(object):
 
 def add_VoiceConversationServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'StreamConversation': grpc.stream_stream_rpc_method_handler(
-                    servicer.StreamConversation,
-                    request_deserializer=grpc_dot_voice__stream__pb2.VoiceRequest.FromString,
-                    response_serializer=grpc_dot_voice__stream__pb2.VoiceResponse.SerializeToString,
+            'GetDailyQuestion': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetDailyQuestion,
+                    request_deserializer=server_dot_grpc_dot_voice__stream__pb2.Empty.FromString,
+                    response_serializer=server_dot_grpc_dot_voice__stream__pb2.QuestionResponse.SerializeToString,
+            ),
+            'GenerateRadioContent': grpc.unary_unary_rpc_method_handler(
+                    servicer.GenerateRadioContent,
+                    request_deserializer=server_dot_grpc_dot_voice__stream__pb2.RadioRequest.FromString,
+                    response_serializer=server_dot_grpc_dot_voice__stream__pb2.RadioResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -71,7 +89,7 @@ class VoiceConversation(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def StreamConversation(request_iterator,
+    def GetDailyQuestion(request,
             target,
             options=(),
             channel_credentials=None,
@@ -81,12 +99,39 @@ class VoiceConversation(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.stream_stream(
-            request_iterator,
+        return grpc.experimental.unary_unary(
+            request,
             target,
-            '/ai.inference.VoiceConversation/StreamConversation',
-            grpc_dot_voice__stream__pb2.VoiceRequest.SerializeToString,
-            grpc_dot_voice__stream__pb2.VoiceResponse.FromString,
+            '/ai.inference.VoiceConversation/GetDailyQuestion',
+            server_dot_grpc_dot_voice__stream__pb2.Empty.SerializeToString,
+            server_dot_grpc_dot_voice__stream__pb2.QuestionResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GenerateRadioContent(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/ai.inference.VoiceConversation/GenerateRadioContent',
+            server_dot_grpc_dot_voice__stream__pb2.RadioRequest.SerializeToString,
+            server_dot_grpc_dot_voice__stream__pb2.RadioResponse.FromString,
             options,
             channel_credentials,
             insecure,

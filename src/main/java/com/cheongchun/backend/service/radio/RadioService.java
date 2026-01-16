@@ -3,7 +3,7 @@ package com.cheongchun.backend.service.radio;
 import com.cheongchun.backend.entity.DailyQuestion;
 import com.cheongchun.backend.entity.RadioStory;
 import com.cheongchun.backend.entity.User;
-import com.cheongchun.backend.repository.DailyQuestionRepository;
+
 import com.cheongchun.backend.repository.RadioStoryRepository;
 import com.cheongchun.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -18,58 +18,71 @@ import java.util.List;
 @RequiredArgsConstructor
 public class RadioService {
 
-    private final DailyQuestionRepository dailyQuestionRepository;
+    private final com.cheongchun.backend.service.AiClient aiClient;
+    private final com.cheongchun.backend.service.S3Service s3Service;
     private final RadioStoryRepository radioStoryRepository;
-    private final UserRepository userRepository;
+    private final UserRepository userRepository; // User 로딩용
 
     /**
-     * 오늘의 질문 가져오기
+     * 오늘의 질문 가져오기 (AI 생성)
      */
     public DailyQuestion getTodayQuestion() {
-        LocalDate today = LocalDate.now();
-        return dailyQuestionRepository.findByTargetDate(today)
-                .orElseThrow(() -> new IllegalArgumentException("No question found for today (" + today + ")"));
+        var response = aiClient.getDailyQuestion();
+
+        // DB에 저장하지 않고 임시 객체 반환
+        DailyQuestion question = new DailyQuestion();
+        question.setContent(response.getQuestion());
+        question.setTopicId(response.getTopicId());
+        question.setTargetDate(LocalDate.now());
+        question.setCreatedAt(LocalDateTime.now());
+
+        return question;
     }
 
     /**
-     * 사연 제출하기 (앱에서 직접 제출 시)
+     * 사연 제출하기 (AI가 라디오 리라이팅 & TTS 생성)
+     */
+    /**
+     * 사연 제출하기 (AI가 라디오 리라이팅 & TTS 생성 -> S3 업로드)
      */
     @Transactional
-    public RadioStory submitStory(User user, Long questionId, String content) {
-        DailyQuestion question = dailyQuestionRepository.findById(questionId)
-                .orElseThrow(() -> new IllegalArgumentException("Question not found with id: " + questionId));
-        
-        // Topic ID가 없으면 에러 혹은 기본값 처리 (여기서는 필수라고 가정)
-        if (question.getTopicId() == null) {
-            throw new IllegalStateException("Question does not have a linked topic ID.");
-        }
+    public RadioResult submitStory(User user, String topicId, String content) {
+        // 1. AI Core에 라디오 생성 요청
+        var response = aiClient.generateRadio(String.valueOf(user.getId()), user.getUsername(), content);
 
+        // 2. S3 업로드
+        String fileName = "radio/" + topicId + "/" + user.getUsername() + "_" + System.currentTimeMillis() + ".wav";
+        String s3Url = s3Service.uploadFile(response.getAudioData().toByteArray(), fileName);
+
+        // 3. 답변 DB 저장 (히스토리용)
         RadioStory story = new RadioStory();
-        story.setTopicId(question.getTopicId());
-        story.setUserId(user.getUsername()); // String(50)에 username 매핑
-        story.setAnswerText(content);
-        story.setIsShared(true); // 제출 시 기본적으로 공유 동의라고 가정 (혹은 파라미터로 받아야 함)
-        story.setBroadcastDate(LocalDateTime.now().plusDays(1)); // 예: 다음날 방송
-        
-        return radioStoryRepository.save(story);
+        story.setTopicId(topicId);
+        story.setUserId(user.getUsername());
+        story.setAnswerText(content); // 원본 답변
+        story.setIsShared(true);
+        story.setBroadcastDate(LocalDateTime.now());
+        // story.setAudioUrl(s3Url); // 엔티티에 필드가 있다면 추가, 현재는 없음
+        radioStoryRepository.save(story);
+
+        // 4. 결과 반환 (S3 URL & 대본)
+        return new RadioResult(response.getScript(), s3Url);
     }
 
     /**
      * 특정 날짜의 라디오 사연들 가져오기
-     * (해당 날짜에 답변된 질문의 Topic ID로 조회)
      */
     @Transactional(readOnly = true)
     public List<RadioStory> getRadioStoriesForDate(LocalDate date) {
-        // 1. 해당 날짜가 targetDate인 질문을 찾음
-        DailyQuestion question = dailyQuestionRepository.findByTargetDate(date)
-                .orElseThrow(() -> new IllegalArgumentException("No question found for date: " + date));
-
-        // 2. 그 질문의 Topic ID로 사연들을 검색
-        String topicId = question.getTopicId();
-        if (topicId == null) {
-            return List.of();
-        }
-        
+        // DB 최적화: date 필드를 사용하거나 topicId 패턴을 사용해야 함.
+        // 현재는 topicId가 날짜(YYYY-MM-DD)라고 가정하고 조회
+        String topicId = date.toString();
         return radioStoryRepository.findByTopicId(topicId);
+    }
+
+    @lombok.Data
+    @lombok.AllArgsConstructor
+    public static class RadioResult {
+        private String script;
+        private String audioUrl;
     }
 }
