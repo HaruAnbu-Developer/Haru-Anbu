@@ -1,4 +1,6 @@
-
+import jason
+from database.schema import ConversationAnalysis, DailyRadioContent
+from database.database import SessionLocal
 
 
 class AnalysisService:
@@ -38,3 +40,22 @@ class AnalysisService:
         db.add(memory)
         db.add(report)
         db.commit()
+    
+    async def process_radio_data(analysis_data: ConversationAnalysis):
+        db = SessionLocal()
+        try:
+            # 1. question_results의 첫 번째 질문(공통질문)을 가져옴
+            if analysis_data.question_results and len(analysis_data.question_results) > 0:
+                common_q_result = analysis_data.question_results[0]
+                
+                # 2. DailyRadiocontet 테이블에 데이터 복사/삽입
+                new_radio_content = DailyRadioContent(
+                    user_id=analysis_data.user_id,
+                    target_date=analysis_data.analyzed_at.date(),
+                    question=common_q_result.get("question"),
+                    answer=common_q_result.get("user_answer") # <-- 이 값이 핵심!
+                )
+                db.add(new_radio_content)
+                db.commit()
+        finally:
+            db.close()
