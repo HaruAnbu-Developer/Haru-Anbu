@@ -19,7 +19,7 @@ class LLMService:
         self.llm = Llama(
             model_path=self.model_path,
             n_gpu_layers=-1,  # 모든 레이어 GPU 사용
-            n_ctx=1024,
+            n_ctx=4096,
             n_batch=512,
             verbose=False
         )
@@ -133,6 +133,34 @@ class LLMService:
                 "question": "오늘 하루 기분은 어떠신가요?"
             }
 
+    async def ask_plain_text(self, prompt_text: str) -> str:
+        """대본 생성을 위한 최적화된 텍스트 생성 메서드"""
+        formatted_prompt = (
+            f"<start_of_turn>user\n{prompt_text}<end_of_turn>\n"
+            f"<start_of_turn>model\n"
+        )
+        
+        # Llama-cpp-python의 특성에 맞게 파라미터 조정
+        output = self.llm(
+            formatted_prompt,
+            max_tokens=2048,    # 1024는 대본이 길어질 경우 아슬아슬할 수 있으니 넉넉히 잡습니다.
+            stop=["<end_of_turn>", "<|file_separator|>", "user:", "model:"], # 불필요한 생성을 막는 중복 방어
+            temperature=0.8,    # 창의적인 표현을 위해 유지
+            top_p=0.9,          # 너무 엉뚱한 단어가 나오지 않게 제어 (추가 권장)
+            repeat_penalty=1.2, # 같은 말을 반복하는 '무한 루프' 방지 (추가 권장)
+            echo=False,
+            stream=False
+        )
+        
+        result = output["choices"][0]["text"].strip()
+        
+        # 혹시 모를 모델의 자문자답(예: "알겠습니다. 대본을 작성해드릴게요") 제거
+        # 보통 Gemma는 지시사항을 잘 따르지만, 가끔 서두를 붙이는 경우가 있음
+        clean_result = re.sub(r'^(알겠습니다|네|작성해드리겠습니다).*?\n', '', result).strip()
+        
+        return clean_result if clean_result else result
+
+#싱글톤
 _llm_service_instance = None
 
 def get_llm_service() -> LLMService:

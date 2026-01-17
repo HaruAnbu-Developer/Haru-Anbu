@@ -47,7 +47,7 @@ class LatentManager:
         
         
 # 라디오 목소리 .pth 불르는 메소드 필요함
-            
+
 # 싱글톤
 _latent_manager_instance = None
 
