@@ -1,8 +1,6 @@
-<<<<<<< HEAD
 .vscode/settings.json
 CallManager/logs/*
 logs/*.log
-=======
 # Environment variables
 .env
 .env.local
@@ -79,4 +77,3 @@ logs/
 # IDE
 *.sublime-project
 *.sublime-workspace
->>>>>>> origin/ai-core
