@@ -1,163 +1,94 @@
-import whisper
+#servuces/stt/stt_service/stt_service.py
+from faster_whisper import WhisperModel
 import torch
 import time
 import logging
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# 음성인식 서비스 클래스 Whisper 기반
 class STTService: 
     
-    def __init__(self, model_size: str = "tiny", device: Optional[str] = None):
-        """
-        Args: option 선택하기
-            model_size: Whisper 모델 크기 ('tiny', 'base', 'small', 'medium', 'large')
-            device: 'cuda' 또는 'cpu'. None이면 자동 감지
-        """
+    def __init__(self, model_size: str = "base", device: str = "cuda"):
         self.model_size = model_size
-        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu") #지금은 cuda 없으니까 그냥 cpu
-        self.model = None
-        self._load_model()
-        
-        logger.info(f"!!!STT Service initialized with model={model_size}, device={self.device}")
-    
-    def _load_model(self):
-        """Whisper 모델 로드"""
+        self.device = device
+        # compute_type은 CPU일 경우 int8, GPU(CUDA)일 경우 float16 권장
+        self.compute_type = "float16" if device == "cuda" else "int8"
+        # 어차피 빠르니까 init 시 바로 모델 load -> warm up
         try:
             start_time = time.time()
-            logger.info(f"Loading Whisper {self.model_size} model...")
-            
-            self.model = whisper.load_model(
-                self.model_size,
-                device=self.device,
-                download_root="./models/whisper"  # 모델 저장 경로
+            # 모델 로드 (tip: Faster-Whisper는 C++이래서 빠르다네요)
+            self.model = WhisperModel(
+                self.model_size, 
+                device=self.device, 
+                compute_type=self.compute_type,
+                download_root="../../models//stt/faster-whisper" # 여기에다가 깔기
             )
-            
-            load_time = time.time() - start_time
-            logger.info(f"Whisper model loaded in {load_time:.2f}s")
-            
-            # 모델 워밍업
             self._warmup()
-            
+
+            load_time = time.time() - start_time
+
+            logger.info(f"🚀 Faster-Whisper ({model_size}) initialized on {device} time: {load_time:.2f}s")
         except Exception as e:
             logger.error(f"Failed to load Whisper model: {e}")
             raise
     
     def _warmup(self):
-        """모델 워밍업 - 첫 추론 속도 개선"""
+        """Faster-Whisper 모델 웜업 - 첫 인식 지연 방지"""
         try:
-            logger.info("Warming up STT model...")
-            # 1초 더미 오디오 생성 (16kHz)
-            dummy_audio = np.zeros(16000, dtype=np.float32)
-            self.model.transcribe(dummy_audio, language="ko", fp16=False)
-            logger.info("STT warmup completed")
+            logger.info("🔥 Warming up Faster-Whisper model...")
+            # 1.5초 분량의 무음 오디오 생성 (16kHz, float32)
+            # 웜업 시에는 실제 추론과 동일한 데이터 형식을 넣어주는 게 좋습니다.
+            dummy_audio = np.zeros(16000 * 1, dtype=np.float32)
+            
+            # transcribe를 한 번 실행하여 내부 엔진을 활성화
+            list(self.model.transcribe(dummy_audio, language="ko"))
+            
+            logger.info("✅ Faster-Whisper warmup completed")
         except Exception as e:
-            logger.warning(f"Warmup failed: {e}")
+            logger.warning(f"⚠️ Warmup failed: {e}")
     
-    # 음성 파일 또는 오디오 데이터로부터 텍스트 변환 함수
-    def transcribe(
-        self,
-        audio_path: Optional[str] = None,
-        audio_data: Optional[np.ndarray] = None,
-        language: str = "ko" # 기본값: 한국어
-    ) -> Dict[str, Any]:
+    
+    def transcribe_stream(self, audio_data: np.ndarray) -> Optional[str]:
         """
-        음성을 텍스트로 변환
-        
-        Args:
-            audio_path: 오디오 파일 경로
-            audio_data: numpy array 형태의 오디오 데이터 (16kHz) -> 실시간 streaming용(전화 등)
-            language: 언어 코드 (기본값: "ko")
-        
-        Returns:
-            {
-                "text": str,           # 변환된 텍스트
-                "duration": float,     # 처리 시간 (초)
-                "language": str,       # 감지된 언어
-                "segments": list       # 세그먼트 정보 (옵션)
-            }
+        최소 길이 검증 + Faster-Whisper VAD를 결합한 최적화 인식
         """
-        if audio_path is None and audio_data is None:
-            raise ValueError("Either audio_path or audio_data must be provided")
-        
+        # 1. 방어 로직: 너무 짧은 데이터는 연산 자원 낭비이므로 컷 
+        # 16kHz 기준 0.5초(8000 샘플) 미만은 무시
+        if len(audio_data) < 16000 * 0.5:
+            return None
+
         start_time = time.time()
-        
         try:
-            # 오디오 소스 결정
-            audio_source = audio_path if audio_path else audio_data
+            # 2. Faster-Whisper 추론
+            # beam_size=1: 속도를 위해 가장 확률 높은 단어 하나만 선택 (실시간성 핵심)
+            segments, info = self.model.transcribe(
+                audio_data,
+                beam_size=1, 
+                language="ko",
+                vad_filter=True,
+                vad_parameters=dict(min_silence_duration_ms=700), # 0.5초 침묵 감지
+                condition_on_previous_text=False # 환청 방지 및 속도 향상
+            )
+            # 제너레이터에서 텍스트 추출
+            segments = list(segments) # 제너레이터 실행
+            text = "".join([s.text for s in segments]).strip()
+
             
-            # Whisper 옵션 설정
-            options = {
-                "language": language,
-                "task": "transcribe",
-                "fp16": self.device == "cuda",  # GPU에서는 FP16 사용
-                "verbose": False
-            }
             
-            # 변환 실행
-            result = self.model.transcribe(audio_source, **options)
-            
-            duration = time.time() - start_time
-            
-            # 성능 모니터링 대충 어느정도 나오는지.. rough 하게 잡은 시간
-            if duration > 0.5:
-                logger.warning(f"STT processing took {duration:.3f}s (target: 0.5s)")
-            else:
-                logger.info(f"STT processing completed in {duration:.3f}s")
-            
-            return {
-                "text": result["text"].strip(),
-                "duration": duration,
-                "language": result.get("language", language),
-                "segments": result.get("segments", [])
-            }
-            
+            if text:
+                duration = time.time() - start_time
+                logger.info(f"👴 인식 결과: {text} ({duration:.3f}s)")
+                return text ,info
+                
+            return None
+
         except Exception as e:
             logger.error(f"STT transcription failed: {e}")
-            raise
-    
-    def transcribe_stream(self, audio_chunk: np.ndarray) -> Optional[str]:
-        """
-        실시간 스트리밍 음성 변환
-        
-        Args:
-            audio_chunk: 오디오 청크 (numpy array)
-        
-        Returns:
-            변환된 텍스트 또는 None (음성이 짧으면)
-        """
-        # 최소 0.5초 이상의 오디오만 처리
-        min_length = 16000 * 0.5  # 16kHz * 0.5초
-        
-        if len(audio_chunk) < min_length:
-            logger.debug(f"Audio chunk too short: {len(audio_chunk)} samples")
             return None
         
-        try:
-            result = self.transcribe(audio_data=audio_chunk)
-            return result["text"]
-        except Exception as e:
-            logger.error(f"Stream transcription failed: {e}")
-            return None
-    
-    #  CPU 혹은 GPU 정보 반환
-    def get_device_info(self) -> Dict[str, Any]:
-        """현재 디바이스 정보 반환"""
-        info = {
-            "device": self.device,
-            "model_size": self.model_size,
-            "cuda_available": torch.cuda.is_available()
-        }
-        
-        if torch.cuda.is_available():
-            info["gpu_name"] = torch.cuda.get_device_name(0)
-            info["gpu_memory_allocated"] = torch.cuda.memory_allocated(0) / 1024**3  # GB
-            info["gpu_memory_reserved"] = torch.cuda.memory_reserved(0) / 1024**3  # GB
-        
-        return info
     
     def unload_model(self):
         """메모리 절약을 위한 모델 언로드"""
@@ -183,26 +114,3 @@ def get_stt_service(model_size: str = "base") -> STTService:
         _stt_service_instance = STTService(model_size=model_size)
     
     return _stt_service_instance
-
-
-# if __name__ == "__main__":
-#     # 간단한 테스트
-#     logging.basicConfig(level=logging.INFO)
-    
-#     print("STT Service Test")
-#     print("=" * 50)
-    
-#     # 서비스 초기화
-#     stt = STTService(model_size="base")
-    
-#     # 디바이스 정보 출력
-#     device_info = stt.get_device_info()
-#     print(f"\nDevice Info:")
-#     for key, value in device_info.items():
-#         print(f"  {key}: {value}")
-
-#     audio_test_path = "/Users/namung2/haru/Haru-Anbu/ai-core/studio_origin/M-GS-1/sample.wav" # 테스트용 오디오 파일 경로 설정
-#     result = stt.transcribe(audio_path=audio_test_path)
-#     print(f"\nTranscription: {result['text']}")
-#     print(f"Duration: {result['duration']:.3f}s")
-    
