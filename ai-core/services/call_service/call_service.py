@@ -52,44 +52,47 @@ class VoiceService(voice_stream_pb2_grpc.VoiceConversationServicer):
                     audio_np = raw_data.astype(np.float32) / 32768.0
                     
                     # STT 실행 (Faster-Whisper)
-                    recognized_text = self.stt_service.transcribe_stream(audio_np)
+                    recognized_text, info = self.stt_service.transcribe_stream(audio_np)
                     
                     if recognized_text:
                         logger.info(f"👴 어르신 인식: {recognized_text}")
-                        
-                        # 인식 성공 시 버퍼를 비워 다음 문장을 준비합니다.
-                        # (단, VAD가 '말이 끝났다'고 판단했을 때만 비우는 것이 더 정확하지만 
-                        # 분석에 성공한 만큼만 버퍼에서 날리기 (슬라이딩 윈도우)
-                        # 지금은 단순하게 전체를 비우지만, 실시간성을 위해 
-                        # "인식된 부분까지만" 잘라내는 것이 가장 고수준의 구현입니다.
-                        #  지금은 인식된 텍스트가 있을 때 비우는 것으로 우선 진행합니다.)
-                        audio_buffer.clear()
+                        if info and hasattr(info, 'duration'):
+                            # 처리된 바이트 계산 (초 * 샘플레이트 * 2바이트)
+                            processed_bytes = int(info.duration * 16000 * 2)
+                            safe_del = min(processed_bytes, len(audio_buffer))
+                            # 처리된 분만 삭제
+                            del audio_buffer[:safe_del]
+
+                            # 방법 1의 철학 적용: ->일단 테스트 해보고 안되면 곂치는 시간을 0.5 초로 늘려보자 (최적화 이슈)
+                            # 인식 결과가 나왔더라도 다음 인식의 자연스러운 연결을 위해 
+                            # 아주 짧은 0.1~0.2초 정도는 겹치게 남겨둘 수도 있습니다.                            
+                        else:
+                            # info가 제대로 안 들어올 경우를 대비한 방어 로직 끊겨도 -> 일단 유지를 해야하니
+                            audio_buffer.clear()
+
 
                         # LLM & TTS 파이프라인 가동
                         async for audio_out in self.process_ai_response_chain(user_id, recognized_text):
                             yield voice_stream_pb2.VoiceResponse(audio_output=audio_out)
                     
-                    # 만약 텍스트가 인식되지 않았다면(침묵 등), 
-                    # 버퍼가 너무 무한정 커지지 않도록 오래된 데이터는 조금씩 밀어내야 합니다.
+                    # 버퍼가 너무 무한정 커지지 않도록 오래된 데이터는 조금씩 밀어내기
                     elif len(audio_buffer) > MIN_PROCESS_BYTES * 3:
                         # 3배수(약 4.5초) 이상 쌓여도 인식이 안 되면 앞부분 1초 삭제
                         del audio_buffer[:16000 * 2]
                     
     async def process_ai_response_chain(self, user_id, text):
-        """STT 결과로부터 LLM 문장 생성 및 TTS 생성을 한 번에 처리"""
         latents = self.latent_manager.get_latent(user_id)
         if not latents:
             logger.error(f"❌ {user_id}의 Latent를 찾을 수 없습니다.")
             return
 
-        # LLM 문장 단위 제너레이터 호출
+        # 단일 루프로 통합하여 즉시 TTS로 전달
         async for sentence in self.llm_service.ask_stream_sentences(text, instruction="당신은 다정한 손주입니다."):
             logger.info(f"🤖 자녀(LLM): {sentence}")
             
-            # 4. TTS: 문장이 나오자마자 XTTS 스트리밍 실행
-            # synthesize_stream은 오디오 청크(bytes)를 yield 한다고 가정
-            async for chunk in self.tts_service.synthesize_stream(sentence, latents):
-                yield chunk
+            async for audio_bytes in self.tts_service.synthesize_stream(sentence, latents):
+                yield voice_stream_pb2.VoiceResponse(audio_output=audio_bytes)
+
 
 async def serve():
     server = grpc.aio.server()
