@@ -40,3 +40,4 @@ pymysql
 python-dotenv
 SQLAlchemy
 boto3
+faster-whisper
