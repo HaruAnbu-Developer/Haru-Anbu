@@ -4,10 +4,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.haru_anbu.CallManager.call.service.CallManagerService;
 import com.haru_anbu.CallManager.call.service.CallSessionService;
+import com.haru_anbu.CallManager.call.service.S3StorageService;
 import com.haru_anbu.CallManager.call.service.VoiceConversationGrpcService;
 import com.haru_anbu.CallManager.call.util.AudioConverter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.*;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
@@ -36,6 +39,13 @@ public class TwilioMediaStreamHandler extends TextWebSocketHandler {
     private final VoiceConversationGrpcService voiceGrpcService;
     private final CallSessionService sessionService;
     private final CallManagerService callManagerService;
+    private final S3StorageService s3StorageService; // 추가
+    
+    @Value("${call.s3-storage.enabled:true}")
+    private boolean s3StorageEnabled;
+    
+    @Value("${call.s3-storage.save-chunks:false}")
+    private boolean saveAudioChunks; // 실시간 청크 저장 여부
     
     // WebSocket 세션 관리 (streamSid → WebSocketSession)
     private final Map<String, WebSocketSession> activeSessions = new ConcurrentHashMap<>();
@@ -174,8 +184,20 @@ public class TwilioMediaStreamHandler extends TextWebSocketHandler {
             byte[] pcmData = audioConverter.twilioToAI(payload);
             
             if (audioConverter.isValidAudio(pcmData, 32)) {
-                // AI로 전송
+                // 1. AI로 전송
                 voiceGrpcService.sendAudioData(sessionId, pcmData);
+                
+                // 2. S3에 저장 (옵션)
+                if (s3StorageEnabled && saveAudioChunks) {
+                    long timestamp = System.currentTimeMillis();
+                    s3StorageService.saveAudioChunkAsync(
+                        sessionId, pcmData, timestamp, "inbound"
+                    ).exceptionally(ex -> {
+                        log.warn("Failed to save audio chunk to S3: {}", ex.getMessage());
+                        return null;
+                    });
+                }
+                
                 log.debug("Sent {} bytes to AI for session {}", pcmData.length, sessionId);
             }
             
@@ -225,6 +247,17 @@ public class TwilioMediaStreamHandler extends TextWebSocketHandler {
         }
         
         try {
+            // S3에 outbound 오디오 저장 (옵션)
+            if (s3StorageEnabled && saveAudioChunks) {
+                long timestamp = System.currentTimeMillis();
+                s3StorageService.saveAudioChunkAsync(
+                    sessionId, pcmData, timestamp, "outbound"
+                ).exceptionally(ex -> {
+                    log.warn("Failed to save outbound audio to S3: {}", ex.getMessage());
+                    return null;
+                });
+            }
+            
             // PCM → mulaw Base64
             String base64Mulaw = audioConverter.aiToTwilio(pcmData);
             

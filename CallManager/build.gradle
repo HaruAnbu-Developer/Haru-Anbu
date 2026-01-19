@@ -45,8 +45,12 @@ dependencies {
 	implementation 'jakarta.annotation:jakarta.annotation-api:2.1.1'
 	implementation 'org.apache.tomcat:annotations-api:6.0.53'
 	
-	// grpc-spring-boot-starter 제거 (충돌 원인)
-	// implementation 'net.devh:grpc-spring-boot-starter:3.1.0.RELEASE'
+	// AWS SDK for S3
+	implementation 'software.amazon.awssdk:s3:2.20.26'
+	implementation 'software.amazon.awssdk:sts:2.20.26'
+	
+	// 비동기 처리용 (선택)
+	implementation 'software.amazon.awssdk:netty-nio-client:2.20.26'
 	
 	// Twilio SDK
 	implementation 'com.twilio.sdk:twilio:9.14.1'
@@ -66,7 +70,7 @@ dependencies {
 	implementation 'org.slf4j:slf4j-api'
 	implementation 'ch.qos.logback:logback-classic'
 	
-	// HTTP Client (Optional - for REST calls to AI Core)
+	// WebClient (RestTemplate 대체)
 	implementation 'org.springframework.boot:spring-boot-starter-webflux'
 	
 	// Actuator (Monitoring)
@@ -81,6 +85,8 @@ dependencies {
 	testImplementation 'org.testcontainers:junit-jupiter'
 	testImplementation 'org.testcontainers:postgresql'
 	testRuntimeOnly 'com.h2database:h2'  // 테스트용 인메모리 DB
+	testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'  // Mock HTTP 서버
+	testImplementation 'io.projectreactor:reactor-test'  // Reactor 테스트
 }
 
 // Protobuf 설정

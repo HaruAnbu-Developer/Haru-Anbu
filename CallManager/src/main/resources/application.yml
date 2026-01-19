@@ -37,6 +37,14 @@ spring:
     time-zone: Asia/Seoul
     default-property-inclusion: non_null
 
+# aws dev environment configuration (임시!!!)
+aws:
+  s3:
+    use-path-style-access: true
+    bucket-name: ${AWS_S3_BUCKET_NAME:haru-anbu-voice-storage}
+    region: ${AWS_S3_REGION:ap-southeast-2}
+    access-key: ${AWS_ACCESS_KEY_ID}
+    secret-key: ${AWS_SECRET_ACCESS_KEY}
 # Server Configuration
 server:
   port: ${SERVER_PORT:8080}
@@ -72,10 +80,12 @@ ai-core:
   retry:
     max-attempts: 3
     backoff-delay: 1000
+  api-key: ${AI_CORE_API_KEY:}
+  timeout-seconds: ${AI_CORE_TIMEOUT_SECONDS:30}
 
 # Call Configuration
 call:
-  max-duration-minutes: ${CALL_MAX_DURATION_MINUTES:30}
+  max-duration-minutes: ${CALL_MAX_DURATION_MINUTES:10}
   recording-enabled: ${CALL_RECORDING_ENABLED:true}
   audio-format: ${CALL_AUDIO_FORMAT:mulaw}
   sample-rate: ${CALL_SAMPLE_RATE:8000}

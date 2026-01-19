@@ -37,3 +37,13 @@ logging:
     com.haru_anbu: DEBUG
     org.hibernate.SQL: DEBUG
     
+# aws dev environment configuration (임시!!!)
+aws:
+  s3:
+    use-path-style-access: true
+    bucket-name: ${AWS_S3_BUCKET_NAME:haru-anbu-voice-storage}
+    region: ${AWS_S3_REGION:ap-southeast-2}
+    access-key: mock-key      # 환경 변수 참조(${...})를 제거하고 가짜 값을 직접 입력
+    secret-key: mock-secret   # 테스트 환경에서는 실제 키가 필요 없으므로 안전함
+    recordings-prefix: test-uploads/
+    audio-chunks-prefix: test-chunks/
