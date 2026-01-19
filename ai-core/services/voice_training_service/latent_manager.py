@@ -5,8 +5,11 @@ import boto3
 from typing import Dict
 from dotenv import load_dotenv
 import tempfile
+import logging
 load_dotenv() # .env 로드 확인
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 class LatentManager:
     def __init__(self, s3_client, bucket_name, device):
         self.s3 = s3_client
@@ -20,17 +23,26 @@ class LatentManager:
         if user_id in self.active_latents:
             return True # 이미 준비됨
         
+        tmp_path = None
         try:
-                # NamedTemporaryFile을 사용하면 context 매니저 종료 시 자동 삭제됨
-            with tempfile.NamedTemporaryFile(suffix=".pth", delete=True) as tmp:
-                self.s3.download_file(self.bucket_name, s3_key, tmp.name)
-                # 특징값 로드 및 GPU 이동
-                latents = torch.load(tmp.name, map_location=self.device)
-                self.active_latents[user_id] = latents
+            # 파일을 직접 열지 않고 경로만 생성
+            fd, tmp_path = tempfile.mkstemp(suffix=".pth")
+            os.close(fd) 
+
+            self.s3.download_file(self.bucket_name, s3_key, tmp_path)
+            
+            # map_location을 사용하여 GPU로 즉시 로드
+            latents = torch.load(tmp_path, map_location=self.device, weights_only=False)
+            self.active_latents[user_id] = latents
+            
+            logger.info(f"✅ LatentManager: {user_id} 로드 성공")
             return True
         except Exception as e:
-            print(f"❌ Prepare failed for {user_id}: {e}")
+            logger.error(f"❌ LatentManager 로드 실패: {e}")
             return False
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                os.remove(tmp_path)
 
     def get_latent(self, user_id: str):
         """합성 시 메모리에서 즉시 꺼내기"""

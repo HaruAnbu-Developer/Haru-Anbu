@@ -1,3 +1,5 @@
+# services/call_service/call_service.py
+import grpc
 import asyncio
 import logging
 import numpy as np
@@ -10,13 +12,41 @@ import server.grpc.voice_stream_pb2_grpc as voice_stream_pb2_grpc
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+logging.getLogger("faster_whisper").setLevel(logging.WARNING)
 
 class VoiceService(voice_stream_pb2_grpc.VoiceConversationServicer):
     def __init__(self):
         self.stt_service = get_stt_service()
         self.llm_service = get_llm_service()
         self.tts_service = get_tts_service()
-        self.latent_manager = get_latent_manager()
+        self.latent_manager= get_latent_manager()
+        
+        # 1. 자녀 목소리 로드 (테스트 실제론 s3에 접근 )
+        user_id = "test_user_1"
+        s3_key = "latents/test_user_1/test_user_1_latent.pth"
+        
+        if self.latent_manager.prepare_user(user_id, s3_key):
+            latents = self.latent_manager.get_latent(user_id)
+            
+            # 🔥 핵심: 직접 호출하지 말고 태스크로 예약만 합니다.
+            # 서버 메인 루프가 시작된 후 별도로 실행됩니다.
+            import asyncio
+            asyncio.create_task(self.safe_warmup(latents))
+            logger.info(f"⏳ {user_id} 목소리로 백그라운드 예열 예약됨")
+            
+    async def safe_warmup(self, latents):
+        """서버 메인 루프를 멈추지 않고 별도 스레드에서 예열 수행"""
+        try:
+            await asyncio.sleep(1) # 서버가 완전히 뜰 시간을 줌
+            logger.info("🔥 [Warmup] 별도 스레드에서 연산 시작...")
+            
+            loop = asyncio.get_event_loop()
+            # 무거운 동기 함수(run_actual_warmup)를 executor에서 실행
+            await loop.run_in_executor(None, self.tts_service.run_actual_warmup, latents)
+            
+            logger.info("✅ [Warmup] 예열 프로세스 최종 완료")
+        except Exception as e:
+            logger.error(f"❌ [Warmup] 예열 중 오류 발생: {e}")
 
     async def StreamConversation(self, request_iterator, context):
         user_id = None
@@ -48,7 +78,12 @@ class VoiceService(voice_stream_pb2_grpc.VoiceConversationServicer):
                 if len(audio_buffer) >= MIN_PROCESS_BYTES:
                     # [포맷 변환] Signed 16-bit Little Endian -> Float32 Numpy
                     # Whisper 모델은 -1.0 ~ 1.0 사이의 float32 데이터를 입력으로 받습니다.
-                    raw_data = np.frombuffer(audio_buffer, dtype=np.int16)
+                    raw_data = np.frombuffer(audio_buffer, dtype=np.int16).copy()
+                    rms = np.sqrt(np.mean(raw_data.astype(np.float32)**2))
+                    if rms < 300: # 300은 마이크 감도에 따라 조절 (보통 100~500 사이)
+                        # 소리가 너무 작으면 앞부분만 살짝 쳐내고 다음을 기다림
+                        del audio_buffer[:16000] # 0.5초치 삭제
+                        continue
                     audio_np = raw_data.astype(np.float32) / 32768.0
                     
                     # STT 실행 (Faster-Whisper)
@@ -68,7 +103,8 @@ class VoiceService(voice_stream_pb2_grpc.VoiceConversationServicer):
                             # 아주 짧은 0.1~0.2초 정도는 겹치게 남겨둘 수도 있습니다.                            
                         else:
                             # info가 제대로 안 들어올 경우를 대비한 방어 로직 끊겨도 -> 일단 유지를 해야하니
-                            audio_buffer.clear()
+                            logger.warning("⚠️ STT info duration missing, keeping buffer for next chunk.")
+                            # audio_buffer.clear() 일단 주석처리
 
 
                         # LLM & TTS 파이프라인 가동

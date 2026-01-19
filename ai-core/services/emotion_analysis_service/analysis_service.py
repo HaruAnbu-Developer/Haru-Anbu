@@ -1,5 +1,5 @@
 import json
-from database.schema import ConversationAnalysis , DailyQuestion
+from database.schema import ConversationAnalysis , DailyQuestion , UserMemory
 from database.database import SessionLocal
 
 
