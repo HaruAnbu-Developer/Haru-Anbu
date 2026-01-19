@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.haru_anbu.CallManager.call.service.CallManagerService;
+import com.haru_anbu.CallManager.call.service.RecordingService;
 import com.haru_anbu.CallManager.call.service.TwilioService;
 
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ public class TwilioWebHookController {
     
     private final TwilioService twilioService;
     private final CallManagerService callManagerService;
+    private final RecordingService recordingService; // 추가
 
     // Voice Webhook 핸들러 - 통화 연결 시 TwiML 반환
     // Twilio가 통화 연결 시 이 엔드포인트를 호출
@@ -66,17 +68,30 @@ public class TwilioWebHookController {
     }
 
 
-    // Recording Callback 핸들러 - 통화 녹음 완료 알림
+    /**
+     * Recording Callback - Twilio 녹음을 S3로 저장
+     */
     @PostMapping("/recording")
     public ResponseEntity<Void> handleRecordingCallback(
             @RequestParam String CallSid,
             @RequestParam String RecordingUrl,
             @RequestParam String RecordingSid,
             @RequestParam(required = false) String RecordingDuration) {
-        log.info("Recording Callback: CallSid={}, RecordingUrl={}, RecordingSid={}, RecordingDuration={}", CallSid, RecordingUrl, RecordingSid, RecordingDuration);
+        log.info("Recording Callback: CallSid={}, RecordingUrl={}, RecordingSid={}, Duration={}", 
+            CallSid, RecordingUrl, RecordingSid, RecordingDuration);
 
         try {
-            callManagerService.updateRecording(CallSid, RecordingUrl);
+            // Twilio 녹음 URL에 .wav 확장자 추가 (필요시)
+            String downloadUrl = RecordingUrl;
+            if (!downloadUrl.endsWith(".wav")) {
+                downloadUrl = downloadUrl + ".wav";
+            }
+            
+            // Twilio에서 다운로드 후 S3에 저장
+            String s3Url = recordingService.downloadAndSaveRecording(CallSid, downloadUrl);
+            
+            log.info("Recording saved to S3: {}", s3Url);
+            
         } catch (Exception e) {
             log.error("Error handling Recording Callback: {}", e.getMessage());
         }
