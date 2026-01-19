@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package ai.inference;
+
+option java_multiple_files = true;
+option java_package = "com.haruanbu.ai.grpc";
+option java_outer_classname = "VoiceStreamProto";
+
+service VoiceConversation {
+  // 양방향 스트리밍: 실시간 음성 데이터를 주고받음
+  rpc StreamConversation(stream VoiceRequest) returns (stream VoiceResponse);
+}
+
+message VoiceRequest {
+  oneof payload {
+    SessionConfig config = 1; // 세션 시작 시 1회 전송
+    bytes audio_content = 2;  // 실ially 20-50ms PCM 데이터
+  }
+}
+
+message SessionConfig {
+  string user_id = 1;      // DB 고유 식별자
+  int32 sample_rate = 2;   // 16000 권장
+  string language_code = 3; // "ko-KR"
+}
+
+message VoiceResponse {
+  oneof payload {
+    bytes audio_output = 1;   // AI 목소리 조각 (Chunk)
+    string transcript = 2;    // 어르신 말 자막
+    string ai_response = 3;   // AI 답변 텍스트
+    bool is_final = 4;        // 한 문장 대화 종료 여부
+  }
+}
