@@ -111,23 +111,28 @@ public class RecordingService {
      * Presigned URL 생성 (다운로드용 임시 링크)
      */
     public String getRecordingDownloadUrl(String sessionId) {
-        try {
-            var callSession = sessionService.getSessionBySessionId(sessionId);
-            String s3Url = callSession.getRecordingUrl();
-            
-            if (s3Url == null || s3Url.isEmpty()) {
-                log.warn("No recording URL for session: {}", sessionId);
-                return null;
-            }
-            
-            return s3StorageService.generatePresignedUrl(s3Url);
-            
-        } catch (Exception e) {
-            log.error("Failed to generate recording download URL", e);
-            return null;
+        // 1. 세션 조회
+        // sessionService.getSessionBySessionId 내부에서 예외를 던지지 않는다면 여기서 직접 던져야 합니다.
+        var callSession = sessionService.getSessionBySessionId(sessionId);
+        
+        if (callSession == null) {
+            throw new RuntimeException("존재하지 않는 세션 ID입니다: " + sessionId);
         }
+
+        // 2. 녹음 URL 확인
+        String s3Url = callSession.getRecordingUrl();
+        
+        if (s3Url == null || s3Url.isEmpty()) {
+            log.warn("No recording URL for session: {}", sessionId);
+            // 테스트 코드의 assertThrows를 만족시키기 위해 예외를 던집니다.
+            throw new RuntimeException("해당 세션에 녹음 파일 URL이 없습니다.");
+        }
+        
+        // 3. Presigned URL 생성
+        // s3StorageService에서 발생하는 예외는 그대로 밖으로 던져지게 둡니다. (try-catch 제거)
+        return s3StorageService.generatePresignedUrl(s3Url);
     }
-    
+        
     /**
      * 녹음 파일 삭제
      */

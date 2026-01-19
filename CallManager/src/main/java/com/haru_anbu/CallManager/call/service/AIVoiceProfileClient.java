@@ -33,6 +33,18 @@ public class AIVoiceProfileClient {
     @Value("${ai-core.timeout-seconds:30}")
     private int timeoutSeconds;
     
+    // Spring이 이 생성자를 통해 의존성을 주입합니다.
+    public AIVoiceProfileClient(
+            WebClient webClient,
+            @Value("${ai-core.base-url:http://localhost:8001}") String aiCoreBaseUrl,
+            @Value("${ai-core.api-key:}") String apiKey, // TODO: key 추가 필요
+            @Value("${ai-core.timeout-seconds:30}") int timeoutSeconds) {
+        this.webClient = webClient;
+        this.aiCoreBaseUrl = aiCoreBaseUrl;
+        this.apiKey = apiKey;
+        this.timeoutSeconds = timeoutSeconds;
+    }
+
     /**
      * AI 서버에 음성 프로필 경로 업데이트 요청 (동기)
      * 
