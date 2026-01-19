@@ -47,30 +47,24 @@ class TTSService:
             load_time = time.time() - start_time
             logger.info(f"TTS model loaded in {load_time:.2f}s")
 
-            self._warmup()
 
         except Exception as e:
             logger.error(f"Failed to load TTS model: {e}")
             raise
-
-    def _warmup(self):
-        """모델 엔진 예열"""
+    
+    def run_actual_warmup(self, latents: dict):
         try:
-            logger.info("🔥 TTS 엔진 예열 중...")
-            # 모델의 기본 스피커 정보 활용 (별도 파일 로드 방지)
-            spk_name = self.tts.speaker_manager.speaker_names[0]
-            latents = {
-                "gpt_cond_latent": self.tts.speaker_manager.speakers[spk_name]["gpt_cond_latent"],
-                "speaker_embedding": self.tts.speaker_manager.speakers[spk_name]["embedding"]
-            }
-            
-            # 실제 인퍼런스 엔진을 한 번 태움 (결과는 무시)
-            gen = self.tts.model.inference_stream("아", "ko", latents["gpt_cond_latent"], latents["speaker_embedding"])
-            for _ in gen: break 
-            
-            logger.info("✅ TTS warmup completed")
+            model_engine = self.tts.synthesizer.tts_model
+            # 스트리밍 대신 일반 추론 호출
+            _ = model_engine.inference(
+                text="hello",
+                language="ko",
+                gpt_cond_latent=latents["gpt_cond_latent"],
+                speaker_embedding=latents["speaker_embedding"]
+            )
+            logger.info("✅ 일반 추론 방식으로 예열 성공")
         except Exception as e:
-            logger.warning(f"⚠️ TTS warmup failed: {e}")
+            logger.error(f"❌ 일반 추론 예열도 실패: {e}")
 
 
     def _preprocess_text(self, text: str) -> str:
@@ -93,36 +87,34 @@ class TTSService:
             logger.info("TTS model unloaded")
 
     async def synthesize_stream(self, text: str, latents: Dict[str, Any]) -> Generator[bytes, None, None]:
-        """
-        [핵심] 실시간 스트리밍 합성: Latent 데이터를 직접 주입하여 텍스트를 음성 바이트로 변환
-        """
         text = self._preprocess_text(text)
         if not text: return
 
         try:
-            # XTTS v2의 inference_stream 사용
-            # 파일 경로 대신 미리 준비된 gpt_cond_latent와 speaker_embedding 사용
-            chunks = self.tts.model.inference_stream(
+            # 엔진 참조
+            model_engine = self.tts.synthesizer.tts_model
+            
+            # 스트리밍 추론 실행
+            # XTTS v2는 generator를 반환합니다.
+            chunks = model_engine.inference_stream(
                 text=text,
                 language=self.language,
                 gpt_cond_latent=latents["gpt_cond_latent"],
                 speaker_embedding=latents["speaker_embedding"],
-                enable_text_splitting=True # 긴 문장 대응
+                enable_text_splitting=True
             )
 
             for chunk in chunks:
-                # 1. 텐서를 CPU로 옮기고 Numpy 변환
+                # 텐서를 numpy 바이트로 변환 (PCM 16bit)
                 audio_np = chunk.cpu().numpy()
-                
-                # 2. Float32 -> Int16 (PCM 16-bit) 변환 (전화망 전송용)
-                # XTTS는 -1~1 사이의 float32를 뱉으므로 32767을 곱해줍니다.
                 audio_int16 = (audio_np * 32767).astype(np.int16)
-                
-                # 3. 바이트로 변환하여 전송
                 yield audio_int16.tobytes()
 
         except Exception as e:
-            logger.error(f"Streaming synthesis failed: {e}")
+            logger.error(f"❌ Streaming synthesis failed: {e}")
+            # 에러 발생 시 추적을 위해 스택트레이스 출력 추가 가능
+            import traceback
+            logger.error(traceback.format_exc())
             
 #----------------------------------------------------------------------------------
     def extract_latents(self, audio_path: str) -> Dict[str, Any]:
@@ -132,16 +124,26 @@ class TTSService:
         try:
             if not Path(audio_path).exists():
                 raise FileNotFoundError(f"Audio file not found: {audio_path}")
-                
-            # 모델의 내부 메서드를 사용하여 특징 추출
-            gpt_cond_latent, speaker_embedding = self.tts.model.get_conditioning_latents(audio_path=[audio_path])
             
+            logger.info(f"🎙️ 특징(Latent) 추출 시작: {audio_path}")
+
+            # 1. 실제 모델 엔진 참조
+            model_engine = self.tts.synthesizer.tts_model
+            
+            # 2. 모델의 내부 메서드를 사용하여 특징 추출
+            # audio_path는 리스트 형태로 전달해야 합니다.
+            gpt_cond_latent, speaker_embedding = model_engine.get_conditioning_latents(
+                audio_path=[audio_path]
+            )
+            
+            logger.info(f"✅ 특징 추출 성공: {audio_path}")
             return {
                 "gpt_cond_latent": gpt_cond_latent,
                 "speaker_embedding": speaker_embedding
             }
+            
         except Exception as e:
-            logger.error(f"Latent extraction failed: {e}")
+            logger.error(f"❌ Latent extraction failed: {e}")
             raise
 
 # Singleton

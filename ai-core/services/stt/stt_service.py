@@ -1,4 +1,4 @@
-#servuces/stt/stt_service/stt_service.py
+#services/stt/stt_service/stt_service.py
 from faster_whisper import WhisperModel
 import torch
 import time
@@ -83,7 +83,7 @@ class STTService:
                 logger.info(f"👴 인식 결과: {text} ({duration:.3f}s)")
                 return text ,info
                 
-            return None
+            return None, None
 
         except Exception as e:
             logger.error(f"STT transcription failed: {e}")

@@ -19,7 +19,7 @@ class LLMService:
         self.llm = Llama(
             model_path=self.model_path,
             n_gpu_layers=-1,  # 모든 레이어 GPU 사용
-            n_ctx=4096,
+            n_ctx=1024,
             n_batch=512,
             verbose=False
         )
@@ -217,5 +217,5 @@ def get_llm_service() -> LLMService:
     global _llm_service_instance
     if _llm_service_instance is None:
         # 모델 경로는 본인의 환경에 맞게 수정
-        _llm_service_instance = LLMService(model_path="../../models/llm/gemma-2-9b-it-Q5_K_M.gguf")
+        _llm_service_instance = LLMService(model_path="./models/llm/gemma-2-9b-it-Q5_K_M.gguf")
     return _llm_service_instance
