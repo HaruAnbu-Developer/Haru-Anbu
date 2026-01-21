@@ -2,6 +2,7 @@
 import os
 import torch
 import boto3
+import time
 from dotenv import load_dotenv
 
 # .env 파일 위치를 명확히 지정하거나 실행 경로에서 읽도록 로드
@@ -43,10 +44,15 @@ class VoiceProcessor:
             self.s3.download_file(self.bucket_name, profile.raw_wav_path, temp_wav)
 
             # 2. 기존 서비스를 통해 특징 추출
-            latents = self.tts_service.extract_latents(temp_wav)
+            tone_color_embedding = self.tts_service.extract_tone_color(temp_wav)
 
             # 3. 로컬 저장 후 S3 업로드
-            torch.save(latents, local_latent_path)
+            latent_data = {
+                "tone_color_embedding": tone_color_embedding,
+                "version": "openvoice_v2",
+                "extracted_at": time.time()
+            }
+            torch.save(latent_data, local_latent_path)
             self.s3.upload_file(local_latent_path, self.bucket_name, s3_latent_key)
 
             # 4. DB 업데이트
