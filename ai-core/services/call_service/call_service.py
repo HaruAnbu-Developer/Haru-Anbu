@@ -20,36 +20,9 @@ class VoiceService(voice_stream_pb2_grpc.VoiceConversationServicer):
         self.llm_service = get_llm_service()
         self.tts_service = get_tts_service()
         self.latent_manager= get_latent_manager()
-        
-        # 1. 자녀 목소리 로드 (테스트 실제론 s3에 접근 )
-        user_id = "test_user_1"
-        s3_key = "latents/test_user_1/test_user_1_latent.pth"
-        
-        if self.latent_manager.prepare_user(user_id, s3_key):
-            latents = self.latent_manager.get_latent(user_id)
-            
-            # 🔥 핵심: 직접 호출하지 말고 태스크로 예약만 합니다.
-            # 서버 메인 루프가 시작된 후 별도로 실행됩니다.
-            import asyncio
-            asyncio.create_task(self.safe_warmup(latents))
-            logger.info(f"⏳ {user_id} 목소리로 백그라운드 예열 예약됨")
-            
-    async def safe_warmup(self, latents):
-        """서버 메인 루프를 멈추지 않고 별도 스레드에서 예열 수행"""
-        try:
-            await asyncio.sleep(1) # 서버가 완전히 뜰 시간을 줌
-            logger.info("🔥 [Warmup] 별도 스레드에서 연산 시작...")
-            
-            loop = asyncio.get_event_loop()
-            # 무거운 동기 함수(run_actual_warmup)를 executor에서 실행
-            await loop.run_in_executor(None, self.tts_service.run_actual_warmup, latents)
-            
-            logger.info("✅ [Warmup] 예열 프로세스 최종 완료")
-        except Exception as e:
-            logger.error(f"❌ [Warmup] 예열 중 오류 발생: {e}")
 
     async def StreamConversation(self, request_iterator, context):
-        user_id = None
+        user_id = "test_user_1"
         # Raw PCM 바이트를 모을 버퍼
         audio_buffer = bytearray()
         
@@ -127,7 +100,7 @@ class VoiceService(voice_stream_pb2_grpc.VoiceConversationServicer):
             logger.info(f"🤖 자녀(LLM): {sentence}")
             
             async for audio_bytes in self.tts_service.synthesize_stream(sentence, latents):
-                yield voice_stream_pb2.VoiceResponse(audio_output=audio_bytes)
+                yield audio_bytes
 
 
 async def serve():

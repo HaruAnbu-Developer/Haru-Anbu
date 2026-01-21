@@ -1,164 +1,96 @@
-#services/tts/tts_service/py
 import torch
-import time
+import os
+import uuid
 import logging
 import numpy as np
-from typing import Optional, Dict, Any, Generator
-from pathlib import Path
-from TTS.api import TTS
 import soundfile as sf
+from typing import Optional, Dict, Any, Generator
+from openvoice import se_extractor
+from openvoice.api import ToneColorConverter
+from melo.api import TTS
 
 logger = logging.getLogger(__name__)
 
-
-class TTSService:
-    """
-    XTTS_v2 기반 음성 합성 서비스
-    """
-    def __init__(
-        self,
-        model_name: str = "tts_models/multilingual/multi-dataset/xtts_v2",
-        device: Optional[str] = None,
-        language: str = "ko"
-    ):
-        self.model_name = model_name
-        self.language = language
-        self.device = device if device else ("cuda" if torch.cuda.is_available() else "cpu")
+class OpenVoiceTTSService:
+    def __init__(self, device: str = "cuda"):
+        self.device = device if torch.cuda.is_available() else "cpu"
+        self.language = "KR"
         
-        self.tts = None
-        self.sample_rate = 24000  # XTTS v2는 기본적으로 24kHz 출력입니다.
-        self._load_model()
-        logger.info(
-            f"TTS Service initialized: model={model_name}, device={self.device}"
-        )
+        # 1. 모델 경로 설정 (경로가 실제 파일 위치와 맞는지 확인 필요)
+        ckpt_converter = "./checkpoints/converter"
+        ckpt_base = "./checkpoints/base_speakers/ses/kr.pth"
+
+        # 2. 베이스 한국어 모델 로드 (MeloTTS)
+        self.base_model = TTS(language=self.language, device=self.device)
+        self.speaker_ids = self.base_model.hps.data.spk2id
+        
+        # 3. 톤 컬러 컨버터 로드
+        self.tone_color_converter = ToneColorConverter(f"{ckpt_converter}/config.json", device=self.device)
+        self.tone_color_converter.load_ckpt(f"{ckpt_converter}/checkpoint.pth")
+        
+        # 4. 소스 SE (기준점) 로드
+        self.source_se = torch.load(ckpt_base, map_location=self.device)
 
 
-    def _load_model(self):
-        try:
-            logger.info(f"Loading TTS model: {self.model_name}...")
-            start_time = time.time()
+        
+        logger.info(f"🚀 OpenVoice V2 (MeloTTS) initialized on {self.device}")
 
-            self.tts = TTS(
-                model_name=self.model_name,
-                progress_bar=False,
-                gpu=(self.device == "cuda")
-            )
-
-            load_time = time.time() - start_time
-            logger.info(f"TTS model loaded in {load_time:.2f}s")
-
-
-        except Exception as e:
-            logger.error(f"Failed to load TTS model: {e}")
-            raise
-    
-    def run_actual_warmup(self, latents: dict):
-        try:
-            model_engine = self.tts.synthesizer.tts_model
-            # 스트리밍 대신 일반 추론 호출
-            _ = model_engine.inference(
-                text="hello",
-                language="ko",
-                gpt_cond_latent=latents["gpt_cond_latent"],
-                speaker_embedding=latents["speaker_embedding"]
-            )
-            logger.info("✅ 일반 추론 방식으로 예열 성공")
-        except Exception as e:
-            logger.error(f"❌ 일반 추론 예열도 실패: {e}")
-
-
-    def _preprocess_text(self, text: str) -> str:
-        text = text.strip().replace("\n", " ")
-
-        import re
-        text = re.sub(r'\s+', ' ', text)
-
-        if len(text) > 200:
-            logger.warning(f"Text too long ({len(text)} chars), truncating to 200")
-            text = text[:200]
-
-        return text
-    
-
-    def unload_model(self):
-        if self.tts:
-            del self.tts
-            self.tts = None
-            logger.info("TTS model unloaded")
+    def extract_tone_color(self, audio_path: str):
+        """손주 목소리 샘플에서 특징(SE) 추출"""
+        target_se, _ = se_extractor.get_se(audio_path, self.tone_color_converter, vad=True)
+        return target_se
 
     async def synthesize_stream(self, text: str, latents: Dict[str, Any]) -> Generator[bytes, None, None]:
         text = self._preprocess_text(text)
         if not text: return
+        
+        target_se = latents.get("tone_color_embedding") # XTTS와 인터페이스 호환
 
         try:
-            # 엔진 참조
-            model_engine = self.tts.synthesizer.tts_model
-            
-            # 스트리밍 추론 실행
-            # XTTS v2는 generator를 반환합니다.
-            chunks = model_engine.inference_stream(
-                text=text,
-                language=self.language,
-                gpt_cond_latent=latents["gpt_cond_latent"],
-                speaker_embedding=latents["speaker_embedding"],
-                enable_text_splitting=True
-            )
+            # 임시 파일 경로
+            temp_id = uuid.uuid4()
+            src_path = f"temp_src_{temp_id}.wav"
+            out_path = f"temp_out_{temp_id}.wav"
 
-            for chunk in chunks:
-                # 텐서를 numpy 바이트로 변환 (PCM 16bit)
-                audio_np = chunk.cpu().numpy()
-                audio_int16 = (audio_np * 32767).astype(np.int16)
+            # [Step 1] 베이스 음성 생성 (MeloTTS)
+            self.base_model.tts_to_file(text, self.speaker_ids['KR'], src_path, speed=1.0)
+            
+            # [Step 2] 목소리 톤 변환
+            self.tone_color_converter.convert(
+                model=self.base_model,
+                src_se=self.source_se,
+                tgt_se=target_se,
+                src_path=src_path,
+                save_path=out_path
+            )
+            
+            # [Step 3] 파일 읽기 및 청크 단위 스트리밍
+            audio_data, sr = sf.read(out_path)
+            chunk_size = int(0.1 * sr) # 100ms 단위로 끊어서 전송
+            
+            for i in range(0, len(audio_data), chunk_size):
+                chunk = audio_data[i:i+chunk_size]
+                audio_int16 = (chunk * 32767).astype(np.int16)
                 yield audio_int16.tobytes()
 
+            # 임시 파일 삭제
+            if os.path.exists(src_path): os.remove(src_path)
+            if os.path.exists(out_path): os.remove(out_path)
+
         except Exception as e:
-            logger.error(f"❌ Streaming synthesis failed: {e}")
-            # 에러 발생 시 추적을 위해 스택트레이스 출력 추가 가능
-            import traceback
-            logger.error(traceback.format_exc())
-            
-#----------------------------------------------------------------------------------
-    def extract_latents(self, audio_path: str) -> Dict[str, Any]:
-        """
-        S3 등에서 다운로드한 wav 파일로부터 XTTS 전용 특징(Latent)을 추출합니다.
-        """
-        try:
-            if not Path(audio_path).exists():
-                raise FileNotFoundError(f"Audio file not found: {audio_path}")
-            
-            logger.info(f"🎙️ 특징(Latent) 추출 시작: {audio_path}")
+            logger.error(f"❌ OpenVoice Synthesis Error: {e}")
 
-            # 1. 실제 모델 엔진 참조
-            model_engine = self.tts.synthesizer.tts_model
-            
-            # 2. 모델의 내부 메서드를 사용하여 특징 추출
-            # audio_path는 리스트 형태로 전달해야 합니다.
-            gpt_cond_latent, speaker_embedding = model_engine.get_conditioning_latents(
-                audio_path=[audio_path]
-            )
-            
-            logger.info(f"✅ 특징 추출 성공: {audio_path}")
-            return {
-                "gpt_cond_latent": gpt_cond_latent,
-                "speaker_embedding": speaker_embedding
-            }
-            
-        except Exception as e:
-            logger.error(f"❌ Latent extraction failed: {e}")
-            raise
+    def _preprocess_text(self, text: str) -> str:
+        # 기존에 만든 정제 로직 활용
+        import re
+        text = text.strip()
+        text = re.sub(r'[^가-힣a-zA-Z0-9\s.\!\?]', '', text)
+        return text
 
-# Singleton
-_tts_service_instance: Optional[TTSService] = None
-
-
-def get_tts_service(
-    model_name: str = "tts_models/multilingual/multi-dataset/xtts_v2"
-) -> TTSService:
-    global _tts_service_instance
-
-    if _tts_service_instance is None:
-        _tts_service_instance = TTSService(
-            model_name=model_name
-        )
-
-    return _tts_service_instance
-
+# 싱글톤 패턴
+_instance = None
+def get_tts_service():
+    global _instance
+    if _instance is None:
+        _instance = OpenVoiceTTSService()
+    return _instance
