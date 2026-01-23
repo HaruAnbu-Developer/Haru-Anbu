@@ -1,4 +1,6 @@
-
+import json
+from database.schema import ConversationAnalysis , DailyQuestion , UserMemory
+from database.database import SessionLocal
 
 
 class AnalysisService:
@@ -38,3 +40,21 @@ class AnalysisService:
         db.add(memory)
         db.add(report)
         db.commit()
+    
+            
+    async def get_combined_data_for_script(db_session):
+        # 1. 오늘의 질문 가져오기
+        daily_q = db_session.query(DailyQuestion).filter(DailyQuestion.id == 1).first()
+        
+        # 2. 어르신들의 답변 결과들 가져오기
+        analyses = db_session.query(ConversationAnalysis).all() # 실제로는 날짜 필터링 필요
+        
+        collected_answers = []
+        for row in analyses:
+            if row.question_results:
+                # 첫 번째 요소의 today_answer 추출
+                answer_text = row.question_results[0].get("today_answer")
+                if answer_text:
+                    collected_answers.append(f"{row.user_id} 어르신: {answer_text}")
+                    
+        return daily_q.question_content, collected_answers

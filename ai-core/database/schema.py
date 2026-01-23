@@ -2,7 +2,7 @@ import enum
 from sqlalchemy import Column, Integer, String, Text, Date, DateTime, JSON, Boolean, Enum as SqlEnum
 from sqlalchemy.sql import func
 from database.database import Base # database.py의 Base 상속
-
+# 테이블 바꿀때는 database import Base
 class StatusEnum(enum.Enum): # 파이썬 enum.Enum 상속
     PENDING = "PENDING"    
     READY = "READY"
@@ -33,9 +33,11 @@ class ConversationAnalysis(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     conversation_id = Column(String(50), unique=True, nullable=False)  # 대화 id 
     user_id = Column(String(50), nullable=False)
+    
     # 1. 종합 점수 및 위험도
     chi_score = Column(Integer)          # 인지 기능 종합 지수 (예: 85)
     danger_level = Column(Integer)       # 0: 양호, 1: 주의, 2: 위험
+    
     
     # 2. UI의 5대 세부 지표 (0~20점 기준)
     recall_score = Column(Integer)       # 기억 상기율
@@ -54,21 +56,21 @@ class ConversationAnalysis(Base):
     
     analyzed_at = Column(DateTime, default=func.now())
 
+    # 0. 라디오용 일일 질문
+    daily_answer = Column(String(500), nullable=False) #어제 만든 질문에 대한 답.
+    
+    
 # 라디오 스키마(서준영)
-class CommunityRadioTopic(Base):
+class CommunityRadioTopic(Base): # -> 유저별 답변 얘로 이제 라디오 script.txt 만듦.
     """라디오 방송용 공통 질문 및 답변 저장소"""
     __tablename__ = "community_radio_topics"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    topic_id = Column(String(50), index=True)      # 예: "FIRST_SALARY" (첫 월급 주제)
     user_id = Column(String(50), nullable=False)   # 답변한 어르신 ID
     answer_text = Column(Text, nullable=False)     # "나는 정장을 맞췄어" (원본 혹은 정제된 답변)
-    is_shared = Column(Boolean, default=False)     # 방송 공유 동의 여부 (개인정보 보호 )
-    broadcast_date = Column(DateTime)              # 방송 예정일 (다음날 아침 등)
     created_at = Column(DateTime, default=func.now())
     
-# 오늘 새로 추가한 스키마
-class DailyQuestion(Base):
+class DailyQuestion(Base): # -> 얘로 질문 생성된 질문 저장해놓고 라디오 스크립트 만들때 항상 불러와서 만듦.
     """매일 업데이트되는 오늘의 공통 질문 (단일 레코드)"""
     __tablename__ = "daily_question"
     
@@ -76,21 +78,4 @@ class DailyQuestion(Base):
     question_content = Column(String(500), nullable=False)
     category = Column(String(50))
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    
-class DailyRadioContent(Base):
-    """라디오 대본 생성을 위한 유저별 공통 질문 답변 보관함"""
-    __tablename__ = "daily_radio_content"
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(String(50), nullable=False)
-    target_date = Column(Date, nullable=False)  # 어느 날의 답변인지
-    
-    # 공통 질문과 그에 대한 답변
-    # 예: "오늘 점심 뭐 드셨어요?" -> "김치찌개"
-    common_question = Column(String(255))
-    user_answer = Column(Text)
-    
-    # 라디오 생성 여부 (중복 생성 방지)
-    is_processed = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=func.now())
     

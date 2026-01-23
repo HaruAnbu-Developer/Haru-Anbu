@@ -1,7 +1,7 @@
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-from fastapi import FastAPI, BackgroundTasks, Depends
+from fastapi import FastAPI, BackgroundTasks, Depends , APIRouter, HTTPException
 from services.voice_training_service.voice_processor import VoiceProcessor
 from services.voice_training_service.latent_manager import get_latent_manager
 from database.schema import VoiceProfile, StatusEnum 
@@ -9,6 +9,10 @@ from database.database import get_db ,SessionLocal
 from sqlalchemy.orm import Session
 from services.radio_service.question_generator import QuestionGenerator
 from services.llm.llm_service_Gemma_stream import get_llm_service
+from services.radio_service.radio_pipeline import RadioPipeline
+from services.radio_service.question_generator import QuestionGenerator
+from services.radio_service.merge_daily_answer import MergeDailyAnswer
+from datetime import datetime, date, timedelta
 
 app = FastAPI()
 voice_processor = VoiceProcessor() # 전용 객체 생성
@@ -62,10 +66,34 @@ async def release_voice(user_id: str):
     latent_manager.release_user(user_id)
     return {"status": "released"}
 
-@app.post("/test/daily-question")
-async def test_question():
-    llm_service = get_llm_service()
-    
-    generator = QuestionGenerator(llm_service) # 이미 생성된 llm_service 주입
-    question = await generator.generate_and_save_daily_question()
-    return {"today_question": question}
+
+@app.post("/force-midnight-job")
+async def force_midnight_job(db: Session = Depends(get_db)):
+    try:
+        print("🚀 [테스트] 자정 통합 작업 강제 시작...")
+        llm = get_llm_service()
+        
+        # 테스트를 위해 오늘 날짜 설정
+        today = datetime.now().date()
+        
+        # 1. 데이터 이관 (오늘 날짜 데이터를 강제로 이관하도록 수정 가능)
+        sg = MergeDailyAnswer(llm)
+        await sg.migrate_daily_answers_to_radio_topics(db) # 내부에서 yesterday를 오늘로 잠시 수정해서 테스트하세요!
+        
+        # 2. 라디오 대본 생성 (target_date 인자 추가)
+        rp = RadioPipeline(llm)
+        # 여기서 today를 넘겨줍니다.
+        script = await rp.build_daily_radio(db, target_date=today) 
+        
+        # 3. 새로운 질문 생성
+        qg = QuestionGenerator(llm)
+        new_question = await qg.generate_and_save_daily_question()
+        
+        return {
+            "status": "success",
+            "script": script,
+            "new_question": new_question
+        }
+    except Exception as e:
+        print(f"❌ 테스트 중 오류 발생: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

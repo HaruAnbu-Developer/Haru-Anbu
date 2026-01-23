@@ -1,60 +1,107 @@
+# services/call_service/call_service.py
+import grpc
 import asyncio
 import logging
-import grpc
+import numpy as np
+from services.stt.stt_service import get_stt_service
+from services.llm.llm_service_Gemma_stream import get_llm_service
+from services.tts.tts_service import get_tts_service
+from services.voice_training_service.latent_manager import get_latent_manager
 import server.grpc.voice_stream_pb2 as voice_stream_pb2
 import server.grpc.voice_stream_pb2_grpc as voice_stream_pb2_grpc
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+logging.getLogger("faster_whisper").setLevel(logging.WARNING)
 
 class VoiceService(voice_stream_pb2_grpc.VoiceConversationServicer):
+    def __init__(self):
+        self.stt_service = get_stt_service()
+        self.llm_service = get_llm_service()
+        self.tts_service = get_tts_service()
+        self.latent_manager= get_latent_manager()
+
     async def StreamConversation(self, request_iterator, context):
-        # 세션별 데이터 큐 생성
-        audio_queue = asyncio.Queue()
-        user_id = None
-
-        # 1. Producer: Spring Boot에서 오는 데이터를 큐에 쌓음
-        async def receive_requests():
-            nonlocal user_id
-            async for request in request_iterator:
-                payload_type = request.WhichOneof("payload")
-                
-                if payload_type == "config":
-                    user_id = request.config.user_id
-                    logger.info(f"Session started for User: {user_id}")
-                    # 여기서 DB에서 어르신 정보를 비동기로 로드할 수 있음
-                    
-                elif payload_type == "audio_content":
-                    await audio_queue.put(request.audio_content)
-
-        # 2. Consumer: 큐에서 데이터를 꺼내 STT -> LLM -> TTS 처리 (핵심 로직)
-        async def process_and_respond():
-            while True:
-                # 오디오 조각 가져오기
-                audio_chunk = await audio_queue.get()
-                
-                # --- 여기서부터 기존에 만든 AI 서비스 연결 ---
-                # 예: stt_text = stt_service.transcribe_streaming(audio_chunk)
-                
-                # 테스트용 가짜 응답 스트리밍 (실제로는 TTS 조각을 보냄)
-                # yield voice_stream_pb2.VoiceResponse(transcript="어르신 말씀 인식 중...")
-                
-                # LLM/TTS가 완료되면 조각 단위로 반환
-                # yield voice_stream_pb2.VoiceResponse(audio_output=tts_chunk)
-                
-                await asyncio.sleep(0.01) # CPU 점유 방지
-
-        # 두 작업을 병렬로 실행
-        receive_task = asyncio.create_task(receive_requests())
+        user_id = "test_user_1"
+        # Raw PCM 바이트를 모을 버퍼
+        audio_buffer = bytearray()
         
-        try:
-            async for response in process_and_respond():
-                yield response
-        except Exception as e:
-            logger.error(f"Error in session {user_id}: {e}")
-        finally:
-            receive_task.cancel()
-            logger.info(f"Session ended for User: {user_id}")
+        # 16kHz, 16-bit PCM에서 1초는 32,000바이트입니다. (16000 * 2바이트)
+        # 어르신의 말을 인식하기 위해 약 1.5초~2초 정도의 데이터가 모였을 때 STT를 시도합니다.
+        # (이 값은 실시간성을 보며 1.0초 정도로 줄여도 됩니다.)
+        MIN_PROCESS_SAMPLES = 16000 * 1.5
+        MIN_PROCESS_BYTES = int(MIN_PROCESS_SAMPLES * 2) # 16-bit = 2 bytes
+
+        async for request in request_iterator:
+            payload_type = request.WhichOneof("payload")
+
+            if payload_type == "config":
+                user_id = request.config.user_id
+                logger.info(f"🎙️ 세션 시작 (User ID: {user_id})")
+                continue
+
+            elif payload_type == "audio_content":
+                if not user_id:
+                    continue
+                
+                # 20~40ms 조각을 버퍼에 추가
+                audio_buffer.extend(request.audio_content)
+
+                # 설정한 버퍼 크기(예: 1.5초)를 넘었을 때 분석 시작
+                if len(audio_buffer) >= MIN_PROCESS_BYTES:
+                    # [포맷 변환] Signed 16-bit Little Endian -> Float32 Numpy
+                    # Whisper 모델은 -1.0 ~ 1.0 사이의 float32 데이터를 입력으로 받습니다.
+                    raw_data = np.frombuffer(audio_buffer, dtype=np.int16).copy()
+                    rms = np.sqrt(np.mean(raw_data.astype(np.float32)**2))
+                    if rms < 300: # 300은 마이크 감도에 따라 조절 (보통 100~500 사이)
+                        # 소리가 너무 작으면 앞부분만 살짝 쳐내고 다음을 기다림
+                        del audio_buffer[:16000] # 0.5초치 삭제
+                        continue
+                    audio_np = raw_data.astype(np.float32) / 32768.0
+                    
+                    # STT 실행 (Faster-Whisper)
+                    recognized_text, info = self.stt_service.transcribe_stream(audio_np)
+                    
+                    if recognized_text:
+                        logger.info(f"👴 어르신 인식: {recognized_text}")
+                        if info and hasattr(info, 'duration'):
+                            # 처리된 바이트 계산 (초 * 샘플레이트 * 2바이트)
+                            processed_bytes = int(info.duration * 16000 * 2)
+                            safe_del = min(processed_bytes, len(audio_buffer))
+                            # 처리된 분만 삭제
+                            del audio_buffer[:safe_del]
+
+                            # 방법 1의 철학 적용: ->일단 테스트 해보고 안되면 곂치는 시간을 0.5 초로 늘려보자 (최적화 이슈)
+                            # 인식 결과가 나왔더라도 다음 인식의 자연스러운 연결을 위해 
+                            # 아주 짧은 0.1~0.2초 정도는 겹치게 남겨둘 수도 있습니다.                            
+                        else:
+                            # info가 제대로 안 들어올 경우를 대비한 방어 로직 끊겨도 -> 일단 유지를 해야하니
+                            logger.warning("⚠️ STT info duration missing, keeping buffer for next chunk.")
+                            # audio_buffer.clear() 일단 주석처리
+
+
+                        # LLM & TTS 파이프라인 가동
+                        async for audio_out in self.process_ai_response_chain(user_id, recognized_text):
+                            yield voice_stream_pb2.VoiceResponse(audio_output=audio_out)
+                    
+                    # 버퍼가 너무 무한정 커지지 않도록 오래된 데이터는 조금씩 밀어내기
+                    elif len(audio_buffer) > MIN_PROCESS_BYTES * 3:
+                        # 3배수(약 4.5초) 이상 쌓여도 인식이 안 되면 앞부분 1초 삭제
+                        del audio_buffer[:16000 * 2]
+                    
+    async def process_ai_response_chain(self, user_id, text):
+        latents = self.latent_manager.get_latent(user_id)
+        if not latents:
+            logger.error(f"❌ {user_id}의 Latent를 찾을 수 없습니다.")
+            return
+
+        # 단일 루프로 통합하여 즉시 TTS로 전달
+        async for sentence in self.llm_service.ask_stream_sentences(text, instruction="당신은 다정한 손주입니다."):
+            logger.info(f"🤖 자녀(LLM): {sentence}")
+            
+            async for audio_bytes in self.tts_service.synthesize_stream(sentence, latents):
+                yield audio_bytes
+
 
 async def serve():
     server = grpc.aio.server()
