@@ -29,13 +29,13 @@ public class TwilioService {
             Call call = Call.creator(
                         new PhoneNumber(toPhoneNumber),
                         new PhoneNumber(twilioConfig.getPhoneNumber()),
-                        URI.create(twilioConfig.getWebhookBaseUrl() + "/api/calls/twilio/voice?userId=" + userId)
+                        URI.create(twilioConfig.getWebhookBaseUrl() + "/api/webhooks/twilio/voice?userId=" + userId)
                         )
                         .setStatusCallback(URI.create(twilioConfig.getStatusCallbackUrl()))
                         .setStatusCallbackEvent(java.util.Arrays.asList("initiated", "ringing", "answered", "completed"))
                         .setStatusCallbackMethod(com.twilio.http.HttpMethod.POST)
                         .setRecord(true)
-                        .setRecordingStatusCallback(twilioConfig.getWebhookBaseUrl() + "/api/calls/twilio/recording")
+                        .setRecordingStatusCallback(twilioConfig.getWebhookBaseUrl() + "/api/webhooks/twilio/recording")
                         .create();
             log.info("Call initiated with SID: {}", call.getSid());
             

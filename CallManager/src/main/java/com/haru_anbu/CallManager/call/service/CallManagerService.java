@@ -1,12 +1,14 @@
 package com.haru_anbu.CallManager.call.service;
 
-import com.haru_anbu.CallManager.call.entity.CallSession;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.util.Map;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Map;
+import com.haru_anbu.CallManager.call.entity.CallSession;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Twilio와 AI gRPC 서비스를 통합하여 통화를 관리하는 서비스
@@ -124,6 +126,9 @@ public class CallManagerService {
         } catch (Exception e) {
             log.error("Failed to update recording URL", e);
         }
+    }
+    public CallSession getSessionByTwilioCallSid(String twilioCallSid) {
+        return sessionService.getSessionByTwilioCallSid(twilioCallSid);
     }
     
     /**
