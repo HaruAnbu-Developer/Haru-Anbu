@@ -79,3 +79,4 @@ logs/*.log
 
 # CallManager development
 CallManager/src/main/resources/application-dev.yml
+ai-core/checkpoints/*

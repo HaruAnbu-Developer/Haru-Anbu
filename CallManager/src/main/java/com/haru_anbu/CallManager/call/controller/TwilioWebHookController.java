@@ -26,7 +26,7 @@ public class TwilioWebHookController {
 
     // Voice Webhook 핸들러 - 통화 연결 시 TwiML 반환
     // Twilio가 통화 연결 시 이 엔드포인트를 호출
-    @PostMapping(value = "/voic", produces = MediaType.APPLICATION_XML_VALUE)
+    @PostMapping(value = "/voice", produces = MediaType.APPLICATION_XML_VALUE)
     public ResponseEntity<String> handleVoiceWebhook(
             @RequestParam String CallSid,
             @RequestParam(required = false) String userId) {
