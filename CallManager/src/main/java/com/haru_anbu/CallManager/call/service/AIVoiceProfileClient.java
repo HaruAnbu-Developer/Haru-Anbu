@@ -1,6 +1,5 @@
 package com.haru_anbu.CallManager.call.service;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -9,16 +8,15 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
-import java.time.Duration;
 
 /**
  * AI 서버 API 클라이언트 (WebClient 버전)
  * voice_profiles 테이블 업데이트를 위한 API 호출
  */
-@Service
-@RequiredArgsConstructor
+@Service  // Spring Bean 등록
 @Slf4j
 public class AIVoiceProfileClient {
     
@@ -33,25 +31,13 @@ public class AIVoiceProfileClient {
     @Value("${ai-core.timeout-seconds:30}")
     private int timeoutSeconds;
     
-    // Spring이 이 생성자를 통해 의존성을 주입합니다.
-    public AIVoiceProfileClient(
-            WebClient webClient,
-            @Value("${ai-core.base-url:http://localhost:8001}") String aiCoreBaseUrl,
-            @Value("${ai-core.api-key:}") String apiKey, // TODO: key 추가 필요
-            @Value("${ai-core.timeout-seconds:30}") int timeoutSeconds) {
+    // Spring이 자동으로 주입할 수 있는 생성자
+    public AIVoiceProfileClient(WebClient webClient) {
         this.webClient = webClient;
-        this.aiCoreBaseUrl = aiCoreBaseUrl;
-        this.apiKey = apiKey;
-        this.timeoutSeconds = timeoutSeconds;
     }
 
     /**
      * AI 서버에 음성 프로필 경로 업데이트 요청 (동기)
-     * 
-     * @param userId 사용자 ID
-     * @param sessionId 세션 ID
-     * @param s3Path S3 경로 (s3://bucket/key)
-     * @return 성공 여부
      */
     public boolean updateVoiceProfilePath(String userId, String sessionId, String s3Path) {
         try {
@@ -63,7 +49,6 @@ public class AIVoiceProfileClient {
             requestBody.put("raw_wav_path", s3Path);
             requestBody.put("updated_at", System.currentTimeMillis());
             
-            // 동기 호출 (block)
             Map<String, Object> response = webClient.post()
                 .uri(url)
                 .header("X-API-Key", apiKey)
@@ -96,11 +81,6 @@ public class AIVoiceProfileClient {
     
     /**
      * AI 서버에 음성 프로필 경로 업데이트 요청 (비동기)
-     * 
-     * @param userId 사용자 ID
-     * @param sessionId 세션 ID
-     * @param s3Path S3 경로
-     * @return Mono<Boolean>
      */
     public Mono<Boolean> updateVoiceProfilePathAsync(String userId, String sessionId, String s3Path) {
         String url = aiCoreBaseUrl + "/api/voice-profiles/update-path";

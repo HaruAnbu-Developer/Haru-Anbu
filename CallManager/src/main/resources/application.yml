@@ -80,7 +80,7 @@ ai-core:
   retry:
     max-attempts: 3
     backoff-delay: 1000
-  api-key: ${AI_CORE_API_KEY:}
+  api-key: ${AI_CORE_API_KEY}
   timeout-seconds: ${AI_CORE_TIMEOUT_SECONDS:30}
 
 # Call Configuration
