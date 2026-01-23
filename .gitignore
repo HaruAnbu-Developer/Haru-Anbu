@@ -1,6 +1,3 @@
-.vscode/settings.json
-CallManager/logs/*
-logs/*.log
 # Environment variables
 .env
 .env.local
@@ -51,6 +48,7 @@ out/
 # VSCode
 .vscode/
 *.code-workspace
+.vscode/settings.json
 
 # Pytest
 .pytest_cache/
@@ -73,7 +71,11 @@ test-server/
 # Logs
 *.log
 logs/
-
+CallManager/logs/*
+logs/*.log
 # IDE
 *.sublime-project
 *.sublime-workspace
+
+# CallManager development
+CallManager/src/main/resources/application-dev.yml
