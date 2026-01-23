@@ -133,11 +133,89 @@ class LLMService:
                 "question": "오늘 하루 기분은 어떠신가요?"
             }
 
+    async def ask_plain_text(self, prompt_text: str) -> str:
+        """대본 생성을 위한 최적화된 텍스트 생성 메서드"""
+        formatted_prompt = (
+            f"<start_of_turn>user\n{prompt_text}<end_of_turn>\n"
+            f"<start_of_turn>model\n"
+        )
+        
+        # Llama-cpp-python의 특성에 맞게 파라미터 조정
+        output = self.llm(
+            formatted_prompt,
+            max_tokens=2048,    # 1024는 대본이 길어질 경우 아슬아슬할 수 있으니 넉넉히 잡습니다.
+            stop=["<end_of_turn>", "<|file_separator|>", "user:", "model:"], # 불필요한 생성을 막는 중복 방어
+            temperature=0.8,    # 창의적인 표현을 위해 유지
+            top_p=0.9,          # 너무 엉뚱한 단어가 나오지 않게 제어 (추가 권장)
+            repeat_penalty=1.2, # 같은 말을 반복하는 '무한 루프' 방지 (추가 권장)
+            echo=False,
+            stream=False
+        )
+        
+        result = output["choices"][0]["text"].strip()
+        
+        # 혹시 모를 모델의 자문자답(예: "알겠습니다. 대본을 작성해드릴게요") 제거
+        # 보통 Gemma는 지시사항을 잘 따르지만, 가끔 서두를 붙이는 경우가 있음
+        clean_result = re.sub(r'^(알겠습니다|네|작성해드리겠습니다).*?\n', '', result).strip()
+        
+        return clean_result if clean_result else result
+    
+    async def ask_stream_sentences(self, user_text: str, instruction: str = ""):
+        """
+        LLM 답변을 문장 단위로 끊어서 반환하여 TTS 체감 속도를 극대화합니다.
+        """
+        # 프롬프트 구성 (지침이 있다면 포함)
+        full_prompt = (
+            f"<start_of_turn>user\n{instruction}\n\n질문: {user_text}<end_of_turn>\n"
+            f"<start_of_turn>model\n"
+        )
+
+        # Llama-cpp-python 스트리밍 호출
+        # 문장 단위로 끊어야 하므로 stream=True
+        stream_output = self.llm(
+            full_prompt,
+            max_tokens=1024,
+            stop=["<end_of_turn>", "user:", "model:"],
+            temperature=0.7,
+            stream=True  # 한 토큰씩 받아오기
+        )
+
+        sentence_buffer = ""
+        
+        # 문장을 끊을 기준 (마침표, 물음표, 느낌표, 줄바꿈)
+        # 한글 특성상 "..." 이나 "요." 뒤에서 끊는 것이 자연스럽습니다.
+        split_marks = re.compile(r'([.!?\n])')
+
+        for chunk in stream_output:
+            token = chunk["choices"][0]["text"]
+            sentence_buffer += token
+
+            # 현재 버퍼에 문장 끝맺음 기호가 있는지 확인
+            if split_marks.search(token):
+                # 문장 기호 기준으로 텍스트 분리
+                parts = split_marks.split(sentence_buffer)
+                
+                # 기호까지 포함해서 문장 완성 (ex: ["안녕하세요", ".", " "])
+                # 마지막 요소는 기호 뒤의 잔여물이므로 제외하고 합침
+                for i in range(0, len(parts) - 1, 2):
+                    complete_sentence = (parts[i] + parts[i+1]).strip()
+                    if complete_sentence:
+                        yield complete_sentence
+                
+                # 남은 잔여물은 다시 버퍼에 저장
+                sentence_buffer = parts[-1]
+
+        # 스트리밍 종료 후 버퍼에 남은 내용 처리
+        final_sentence = sentence_buffer.strip()
+        if final_sentence:
+            yield final_sentence
+
+#싱글톤
 _llm_service_instance = None
 
 def get_llm_service() -> LLMService:
     global _llm_service_instance
     if _llm_service_instance is None:
         # 모델 경로는 본인의 환경에 맞게 수정
-        _llm_service_instance = LLMService(model_path="../../models/llm/gemma-2-9b-it-Q5_K_M.gguf")
+        _llm_service_instance = LLMService(model_path="./models/llm/gemma-2-9b-it-Q5_K_M.gguf")
     return _llm_service_instance

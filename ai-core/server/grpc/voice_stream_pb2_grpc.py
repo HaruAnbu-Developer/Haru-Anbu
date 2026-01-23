@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from server.grpc import voice_stream_pb2 as grpc_dot_voice__stream__pb2
+from server.grpc import voice_stream_pb2 as server_dot_grpc_dot_voice__stream__pb2
 
 GRPC_GENERATED_VERSION = '1.76.0'
 GRPC_VERSION = grpc.__version__
@@ -18,7 +18,7 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + ' but the generated code in grpc/voice_stream_pb2_grpc.py depends on'
+        + ' but the generated code in server/grpc/voice_stream_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
@@ -36,8 +36,8 @@ class VoiceConversationStub(object):
         """
         self.StreamConversation = channel.stream_stream(
                 '/ai.inference.VoiceConversation/StreamConversation',
-                request_serializer=grpc_dot_voice__stream__pb2.VoiceRequest.SerializeToString,
-                response_deserializer=grpc_dot_voice__stream__pb2.VoiceResponse.FromString,
+                request_serializer=server_dot_grpc_dot_voice__stream__pb2.VoiceRequest.SerializeToString,
+                response_deserializer=server_dot_grpc_dot_voice__stream__pb2.VoiceResponse.FromString,
                 _registered_method=True)
 
 
@@ -56,8 +56,8 @@ def add_VoiceConversationServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'StreamConversation': grpc.stream_stream_rpc_method_handler(
                     servicer.StreamConversation,
-                    request_deserializer=grpc_dot_voice__stream__pb2.VoiceRequest.FromString,
-                    response_serializer=grpc_dot_voice__stream__pb2.VoiceResponse.SerializeToString,
+                    request_deserializer=server_dot_grpc_dot_voice__stream__pb2.VoiceRequest.FromString,
+                    response_serializer=server_dot_grpc_dot_voice__stream__pb2.VoiceResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -85,8 +85,8 @@ class VoiceConversation(object):
             request_iterator,
             target,
             '/ai.inference.VoiceConversation/StreamConversation',
-            grpc_dot_voice__stream__pb2.VoiceRequest.SerializeToString,
-            grpc_dot_voice__stream__pb2.VoiceResponse.FromString,
+            server_dot_grpc_dot_voice__stream__pb2.VoiceRequest.SerializeToString,
+            server_dot_grpc_dot_voice__stream__pb2.VoiceResponse.FromString,
             options,
             channel_credentials,
             insecure,

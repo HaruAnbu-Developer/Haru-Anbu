@@ -38,7 +38,7 @@ def get_db():
 def init_db():
     # 여기서 schema.py를 임포트해야 Base.metadata에 테이블 정보가 등록됩니다.
     from database import engine, Base
-    import schema 
+    import schema
     try:
         # DB_NAME에 해당하는 데이터베이스가 있어야 실행
         Base.metadata.create_all(bind=engine)
