@@ -112,46 +112,48 @@ public class AIVoiceProfileClient {
     }
     
     /**
-     * AI 서버에 음성 프로필 생성 요청 (동기)
+     * AI 서버에 음성 프로필 생성 요청 (논블로킹 비동기)
      */
-    public boolean createVoiceProfile(String userId, String sessionId, String s3Path, 
-                                     String phoneNumber) {
-        try {
-            String url = aiCoreBaseUrl + "/api/voice-profiles/create";
-            
-            Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("user_id", userId);
-            requestBody.put("session_id", sessionId);
-            requestBody.put("raw_wav_path", s3Path);
-            requestBody.put("phone_number", phoneNumber);
-            requestBody.put("created_at", System.currentTimeMillis());
-            
-            Map<String, Object> response = webClient.post()
-                .uri(url)
-                .header("X-API-Key", apiKey)
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(requestBody)
-                .retrieve()
-                .bodyToMono(new org.springframework.core.ParameterizedTypeReference<Map<String, Object>>() {})
-                .timeout(Duration.ofSeconds(timeoutSeconds))
-                .block();
-            
-            if (response != null && Boolean.TRUE.equals(response.get("success"))) {
-                log.info("Successfully created voice profile for user: {}", userId);
-                return true;
-            } else {
-                log.warn("Failed to create voice profile. Response: {}", response);
-                return false;
-            }
-            
-        } catch (WebClientResponseException e) {
-            log.error("HTTP error creating voice profile. Status: {}, Body: {}", 
-                e.getStatusCode(), e.getResponseBodyAsString(), e);
-            return false;
-        } catch (Exception e) {
-            log.error("Error creating voice profile for user: {}", userId, e);
-            return false;
-        }
+    public void createVoiceProfile(String userId, String sessionId, String s3Path, String phoneNumber) {
+        String url = aiCoreBaseUrl + "/api/voice-profiles/create";
+
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("user_id", userId);
+        requestBody.put("session_id", sessionId);
+        requestBody.put("raw_wav_path", s3Path);
+        requestBody.put("phone_number", phoneNumber);
+        requestBody.put("created_at", System.currentTimeMillis());
+
+        log.info("Sending voice profile creation request for user: {}", userId);
+
+        webClient.post()
+            .uri(url)
+            .header("X-API-Key", apiKey)
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(requestBody)
+            .retrieve()
+            // 결과를 Map으로 받음
+            .bodyToMono(new org.springframework.core.ParameterizedTypeReference<Map<String, Object>>() {})
+            .timeout(Duration.ofSeconds(timeoutSeconds))
+            // 성공적으로 응답을 받았을 때 처리
+            .doOnSuccess(response -> {
+                if (response != null && Boolean.TRUE.equals(response.get("success"))) {
+                    log.info("Successfully created voice profile for user: {}", userId);
+                } else {
+                    log.warn("AI Server returned failure for user {}: {}", userId, response);
+                }
+            })
+            // 에러 발생 시 처리
+            .doOnError(e -> {
+                if (e instanceof WebClientResponseException we) {
+                    log.error("HTTP error creating voice profile. Status: {}, Body: {}", 
+                        we.getStatusCode(), we.getResponseBodyAsString());
+                } else {
+                    log.error("Error creating voice profile for user: {}", userId, e);
+                }
+            })
+            // 실제 실행 (구독)
+            .subscribe(); 
     }
     
     /**
