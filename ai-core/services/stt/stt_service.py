@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class STTService: 
     
-    def __init__(self, model_size: str = "base", device: str = "cuda"):
+    def __init__(self, model_size: str = "medium", device: str = "cuda"):
         self.model_size = model_size
         self.device = device
         # compute_type은 CPU일 경우 int8, GPU(CUDA)일 경우 float16 권장
@@ -66,10 +66,11 @@ class STTService:
             # beam_size=1: 속도를 위해 가장 확률 높은 단어 하나만 선택 (실시간성 핵심)
             segments, info = self.model.transcribe(
                 audio_data,
-                beam_size=1, 
+                beam_size=5, 
                 language="ko",
                 vad_filter=True,
-                vad_parameters=dict(min_silence_duration_ms=700), # 0.5초 침묵 감지
+                vad_parameters=dict(min_silence_duration_ms=700),
+                initial_prompt="할머니와 손주의 다정한 대화입니다. 일상적인 안부와 식사 메뉴에 대해 이야기합니다.",
                 condition_on_previous_text=False # 환청 방지 및 속도 향상
             )
             # 제너레이터에서 텍스트 추출
@@ -87,7 +88,7 @@ class STTService:
 
         except Exception as e:
             logger.error(f"STT transcription failed: {e}")
-            return None
+            return None , None
         
     
     def unload_model(self):

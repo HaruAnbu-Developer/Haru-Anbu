@@ -34,13 +34,28 @@ async def audio_generator():
 async def main():
     async with grpc.aio.insecure_channel('localhost:50051') as channel:
         stub = voice_stream_pb2_grpc.VoiceConversationStub(channel)
+        
+        # --- 오디오 출력을 위한 PyAudio 설정 추가 ---
+        p = pyaudio.PyAudio()
+        # TTS 서비스가 24kHz 모노로 주니까 설정을 맞춰야 합니다.
+        out_stream = p.open(format=pyaudio.paInt16, channels=1, rate=24000, output=True)
+        # ------------------------------------------
+
+        print("👂 AI의 답변을 기다리는 중...")
         responses = stub.StreamConversation(audio_generator())
         
         async for res in responses:
             if res.audio_output:
-                print(f"🔊 AI 음성 수신 중: {len(res.audio_output)} bytes")
+                # 수신된 바이트 데이터를 스피커 스트림으로 직접 쓰기 (재생)
+                out_stream.write(res.audio_output)
+                # print(f"🔊 AI 음성 수신 중: {len(res.audio_output)} bytes")
             if res.transcript:
                 print(f"👴 어르신 자막: {res.transcript}")
+
+        # 종료 처리
+        out_stream.stop_stream()
+        out_stream.close()
+        p.terminate()
 
 if __name__ == "__main__":
     asyncio.run(main())
