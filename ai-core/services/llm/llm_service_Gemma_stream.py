@@ -2,7 +2,7 @@
 
 import time
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Dict, Any, List
 from llama_cpp import Llama
 import re 
 import json
