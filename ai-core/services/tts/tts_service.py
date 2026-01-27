@@ -95,6 +95,41 @@ class OpenVoiceTTSService:
         except Exception as e:
             logger.error(f"❌ 특징 추출 중 오류 발생: {e}")
             raise e
+        
+    def synthesize(self, text: str, latents: Dict[str, Any], speed: float = 1.0) -> bytes: 
+        """
+        [RadioPipeline용] 
+        텍스트 전체를 한 번에 변환하여 WAV 바이트(bytes)로 반환합니다.
+        스트리밍이 아닌 파일 업로드용입니다.
+        """
+        text = self._preprocess_text(text)
+        if not text: return b""
+
+        target_se = latents.get("tone_color_embedding")
+        
+        try:
+            # 1. MeloTTS로 베이스 오디오 생성 (numpy array)
+            # 라디오는 조금 차분하게 0.9 배속 추천, 필요 시 speed 인자 조절
+            audio_numpy = self.base_model.tts_to_file(text, self.speaker_ids['KR'], None, speed=speed)
+            
+            # 2. 메모리 버퍼에 WAV 포맷으로 쓰기 (OpenVoice 입력용)
+            src_bio = io.BytesIO()
+            sf.write(src_bio, audio_numpy, self.base_model.hps.data.sampling_rate, format='WAV')
+            
+            # 3. 톤 컬러 변환 (메모리 상에서 처리)
+            # convert_in_memory는 numpy array를 반환함
+            converted_audio_np = self.convert_in_memory(src_bio.getvalue(), self.source_se, target_se)
+
+            # 4. 최종 결과물을 WAV bytes로 변환
+            out_bio = io.BytesIO()
+            # OpenVoice 출력은 보통 24000Hz (config 확인 필요하지만 보통 24k)
+            sf.write(out_bio, converted_audio_np, 24000, format='WAV')
+            
+            return out_bio.getvalue()
+
+        except Exception as e:
+            logger.error(f"❌ [TTS] 합성 중 오류 발생: {e}")
+            return b""
 
     async def synthesize_stream(self, text: str, latents: Dict[str, Any]) -> Generator[bytes, None, None]:
         text = self._preprocess_text(text)

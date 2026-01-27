@@ -1,17 +1,19 @@
-from apscheduler.schedulers.asyncio import AsyncioScheduler
+#services/radio_service/scheduler.py
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from database.database import SessionLocal
 from services.radio_service.merge_daily_answer import MergeDailyAnswer
 from services.radio_service.radio_pipeline import RadioPipeline
 from services.radio_service.question_generator import QuestionGenerator
 from services.llm.llm_service_Gemma_stream import get_llm_service
+from datetime import date
 
-scheduler = AsyncioScheduler()
+scheduler = AsyncIOScheduler()
 
 async def midnight_job():
     print("🌙 자정 스케줄러 작동 시작...")
     db = SessionLocal()
     llm = get_llm_service()
-    
+    today = date.today()
     try:
         # 1단계: 어제 답변 이관 (MergeDaliyAnswer)
         sg = MergeDailyAnswer(llm)
@@ -19,7 +21,7 @@ async def midnight_job():
         
         # 2단계: 오늘 방송할 라디오 대본 생성 (RadioPipeline)
         rp = RadioPipeline(llm) # LLM 주입 필요
-        await rp.build_daily_radio(db)
+        await rp.build_daily_radio(db,today)
         
         # 3단계: 오늘 낮에 물어볼 새로운 질문 생성 (QuestionGenerator)
         qg = QuestionGenerator(llm)
