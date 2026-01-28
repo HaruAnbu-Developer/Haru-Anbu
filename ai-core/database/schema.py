@@ -1,3 +1,4 @@
+# database/schema.py
 import enum
 from sqlalchemy import Column, Integer, String, Text, Date, DateTime, JSON, Boolean, Enum as SqlEnum
 from sqlalchemy.sql import func
@@ -25,6 +26,28 @@ class UserMemory(Base):
     user_id = Column(String(50), nullable=False, index=True) 
     conversation_id = Column(String(50), unique=True, nullable=False)
     summary_text = Column(Text, nullable=False) # "어르신이 오늘 기분이 좋으셨음"
+    created_at = Column(DateTime, default=func.now())
+    
+class UserMission(Base):
+    """
+    분석 LLM이 생성한 '오늘의 사용자별 필수 질문' 
+    (통화 시작 시 ConversationManager가 로드함)
+    """
+    __tablename__ = "user_missions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(50), nullable=False)
+    
+    # 질문 내용 (예: "어제 허리 아프시다 했는데 좀 어떠세요?")
+    mission_text = Column(Text, nullable=False)
+    
+    # 질문 카테고리 (건강, 기억력, 식사, 기분 등 - 분석용)
+    category = Column(String(50), default="general")
+    
+    # 해결 여부 (질문을 했고, 답변을 들었으면 True)
+    is_cleared = Column(Boolean, default=False)
+    
+    # 생성일 (오늘 날짜의 질문만 가져오기 위함)
     created_at = Column(DateTime, default=func.now())
 
 class ConversationAnalysis(Base):

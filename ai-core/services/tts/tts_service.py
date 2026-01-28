@@ -45,7 +45,7 @@ class OpenVoiceTTSService:
         
         print(f"🚀 [Memory-Only Mode] TTS 서비스가 {self.device}에서 준비되었습니다.")
 
-    def convert_in_memory(self, src_bytes, src_se, tgt_se, tau=0.5):
+    def convert_in_memory(self, src_bytes, src_se, tgt_se, tau=0.3):
         """
         파일 생성 없이 메모리(BytesIO) 상에서 
         공식 convert 함수를 실행하여 에러를 원천 차단합니다.
@@ -59,8 +59,7 @@ class OpenVoiceTTSService:
         # 2. 결과물을 받을 메모리 버퍼 생성
         tgt_buffer = io.BytesIO()
         # sf.write는 파일 객체도 지원하므로, 실제 경로 대신 버퍼를 넘깁니다.
-        # 하지만 OpenVoice API 내부에서 '파일 확장자'를 체크할 수도 있으므로 
-        # 이름 속성을 가짜로 부여합니다.
+        # 하지만 OpenVoice API 내부에서 '파일 확장자'를 체크 이름 속성을 가짜로 부여
         src_buffer.name = "input.wav"
         tgt_buffer.name = "output.wav"
 

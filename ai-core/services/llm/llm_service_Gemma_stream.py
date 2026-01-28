@@ -164,9 +164,10 @@ class LLMService:
         """
         LLM 답변을 문장 단위로 끊어서 반환하여 TTS 체감 속도를 극대화합니다.
         """
-        # 프롬프트 구성 (지침이 있다면 포함)
         full_prompt = (
-            f"<start_of_turn>user\n{instruction}\n\n질문: {user_text}<end_of_turn>\n"
+            f"<start_of_turn>user\n"
+            f"[시스템 지시사항]: {instruction}\n" # 이렇게 명시해주면 더 잘 따릅니다.
+            f"어르신 말씀: {user_text}<end_of_turn>\n"
             f"<start_of_turn>model\n"
         )
 
@@ -216,6 +217,5 @@ _llm_service_instance = None
 def get_llm_service() -> LLMService:
     global _llm_service_instance
     if _llm_service_instance is None:
-        # 모델 경로는 본인의 환경에 맞게 수정
         _llm_service_instance = LLMService(model_path="./models/llm/gemma-2-9b-it-Q5_K_M.gguf")
     return _llm_service_instance
