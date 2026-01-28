@@ -5,6 +5,7 @@ from services.radio_service.merge_daily_answer import MergeDailyAnswer
 from services.radio_service.radio_pipeline import RadioPipeline
 from services.radio_service.question_generator import QuestionGenerator
 from services.llm.llm_service_Gemma_stream import get_llm_service
+from services.emotion_analysis_service.analysis_service import get_analysis_service
 from datetime import date
 
 scheduler = AsyncIOScheduler()
@@ -13,8 +14,13 @@ async def midnight_job():
     print("🌙 자정 스케줄러 작동 시작...")
     db = SessionLocal()
     llm = get_llm_service()
+    analysis_service = get_analysis_service()
     today = date.today()
     try:
+        
+        print("📊 [Step 1] 통화 정밀 분석 및 기억 저장 시작...")
+        await analysis_service.run_daily_analysis_batch()
+        
         # 1단계: 어제 답변 이관 (MergeDaliyAnswer)
         sg = MergeDailyAnswer(llm)
         await sg.migrate_daily_answers_to_radio_topics(db)
@@ -26,6 +32,8 @@ async def midnight_job():
         # 3단계: 오늘 낮에 물어볼 새로운 질문 생성 (QuestionGenerator)
         qg = QuestionGenerator(llm)
         await qg.generate_and_save_daily_question()
+        
+        await qg.generate_user_missions()
         
         print("✅ 모든 자정 작업이 완료되었습니다.")
     except Exception as e:
