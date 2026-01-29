@@ -38,7 +38,7 @@ class LLMService:
         user_name: str = "어르신",
         add_to_history: bool = True):
         """문장 단위로 텍스트를 정제하여 스트리밍"""
-        system_prompt = "당신은 다정한 손주입니다. 어르신의 말씀에 공감하며 한두 문장으로 따뜻하게 답하세요."
+        system_prompt = "당신은 다정한 손주입니다. 어르신의 말씀에 공감하며 한문장으로 따뜻하게 답하세요. 질문시에도 한문장으로 질문하고 대답을 들으세요"
         
         history_text = ""
         for msg in self.conversation_history[-2:]:
