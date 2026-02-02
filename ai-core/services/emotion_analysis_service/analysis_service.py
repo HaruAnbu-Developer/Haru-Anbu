@@ -113,7 +113,8 @@ class AnalysisService:
             
             3. **질문 수행 결과**:
                - question_results: [{{"question": "...", "is_correct": true/false}}]
-               - 정답 기준: 문맥상 적절하고 논리적인 답변을 했으면 true.
+               - 정답 기준: 대화 내용을 분석하여 사용자가 미션을 수행했는지 판단하세요.
+                - **중요**: 사용자가 단답형이거나 태도가 불친절하더라도, **질문에 대한 '정보(메뉴, 상태 등)'를 제공했다면 true**로 판정하세요.
             
             4. **텍스트 분석**:
                - summary: 보호자를 위한 3줄 요약 (비의료인 관점).
@@ -142,9 +143,6 @@ class AnalysisService:
             
             # LLM 호출
             result_json = await self.llm_service.ask_json(prompt)
-            
-            # (테스트용 더미 데이터 - 실제 연결 시 위 주석 해제 후 삭제)
-            # LLM이 파싱 실패했을 때를 대비한 기본값 처리도 고려해야 함
 
             # 3-1. ConversationAnalysis 저장 (리포트용)
             analysis = ConversationAnalysis(
@@ -168,10 +166,6 @@ class AnalysisService:
                 health_flags=json.dumps(result_json.get("health_flags", []), ensure_ascii=False),
                 daily_answer=result_json.get("daily_answer", ""),
                 
-                # 원본 로그 파일 경로 (추적용)
-                # (스키마에 해당 컬럼이 없다면 daily_answer 등에 넣거나 무시, 
-                #  혹은 daily_answer 컬럼 용도를 파일 경로 저장용이 아닌 실제 답변 저장용으로 쓰기로 했으므로 주의)
-                # 여기선 daily_answer에는 실제 답변을 넣고, 파일 경로는 별도로 저장하지 않음(conversation_id로 유추 가능)
             )
             db.add(analysis)
 
@@ -188,22 +182,31 @@ class AnalysisService:
             
             # LLM 분석 결과(question_results)가 있으면 실행
             if result_json.get("question_results"):
-                # 미션 리스트(missions)를 순회하며 LLM 결과와 매칭
                 for m in missions:
-                    mission_text = m.get('question') # 혹은 m.get('mission_text')
+                    mission_text = m.get('question')
                     db_id = m.get('db_id')
+                    mission_type = m.get('type') # type 확인 (memory, health 등)
                     
-                    # LLM 결과에서 해당 질문에 대한 정답 여부 찾기
-                    # (LLM이 텍스트를 약간 바꿀 수도 있으므로, 순서가 같다고 가정하거나 텍스트 포함 여부로 확인)
                     is_success = False
+                    
+                    # [Logic 1] LLM의 JSON 결과(is_correct) 확인
                     for res in result_json["question_results"]:
-                        # 질문 내용이 대충 맞으면 (LLM이 요약했을 수 있으므로 in 사용 추천)
-                        if res.get("question") in mission_text or mission_text in res.get("question"):
+                        # 질문 텍스트 매칭 (핵심 키워드가 포함되어 있으면 매칭으로 간주)
+                        # LLM이 질문을 요약해서 반환할 수도 있으므로 유연하게 비교
+                        res_q = res.get("question", "")
+                        if (mission_text in res_q) or (res_q in mission_text) or (len(set(mission_text.split()) & set(res_q.split())) > 2):
                             if res.get("is_correct") == True:
                                 is_success = True
                             break
                     
-                    # ★ 정답(is_success)이고, DB ID가 존재할 때만 업데이트 수행
+                    # ★ [Logic 2] (보완) 만약 'memory'(라디오) 미션인데, daily_answer가 추출됐다면 성공 처리
+                    # LLM이 태도는 마음에 안 들어도 답은 추출했기 때문입니다.
+                    if mission_type == 'memory' and result_json.get("daily_answer"):
+                        if len(result_json["daily_answer"]) > 2: # 빈 문자열이 아니면
+                            is_success = True
+                            logger.info(f"✅ daily_answer 추출됨 -> 미션 강제 성공 처리")
+
+                    # 최종 업데이트
                     if is_success and db_id:
                         db_mission = db.query(UserMission).filter(UserMission.id == db_id).first()
                         if db_mission:
