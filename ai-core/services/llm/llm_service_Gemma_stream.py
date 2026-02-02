@@ -19,7 +19,7 @@ class LLMService:
         self.llm = Llama(
             model_path=self.model_path,
             n_gpu_layers=-1,  # 모든 레이어 GPU 사용
-            n_ctx=1024,
+            n_ctx=4096,
             n_batch=512,
             verbose=False
         )
@@ -89,49 +89,56 @@ class LLMService:
         self.conversation_history.clear()
             
     
-    # --- 새로 추가할 ask_json 메서드 --- 
     async def ask_json(self, prompt_text: str) -> Dict[str, Any]:
-        """질문을 던지고 JSON 결과만 파싱하여 반환"""
+        """[분석용] 질문을 던지고 JSON 결과만 파싱하여 반환"""
         
-        # 1. Gemma-2 전용 JSON 유도 프롬프트
-        # 모델에게 JSON 외의 말은 하지 말라고 엄격하게 지시합니다.
         formatted_prompt = (
             f"<start_of_turn>user\n"
-            f"지시사항: 반드시 다음 형식을 지킨 JSON 데이터만 출력하세요. 다른 설명은 절대 하지 마세요.\n"
-            f"형식: {{\"category\": \"...\", \"question\": \"...\"}}\n"
-            f"내용: {prompt_text}<end_of_turn>\n"
-            f"<start_of_turn>model\n{{" # '{'를 미리 입력해두어 JSON 시작을 강제함
+            f"{prompt_text}\n"
+            f"반드시 JSON 형식으로만 답하세요. 코멘트는 하지 마세요.\n"
+            f"<end_of_turn>\n"
+            f"<start_of_turn>model\n```json\n" # JSON 시작 유도
         )
 
+        # ★ [수정] stop 토큰 변경 ('}' 제거)
         output = self.llm(
             formatted_prompt,
-            max_tokens=256,
-            stop=["<end_of_turn>", "}"], # '}'가 나오면 바로 멈추게 설정
-            temperature=0.2,            # 형식을 위해 온도를 낮춤
+            max_tokens=2048, 
+            stop=["<end_of_turn>", "```"], # '}'를 제거해야 중첩 JSON이 안 끊깁니다!
+            temperature=0.1, 
             echo=False,
             stream=False
         )
         
-        # 모델 출력값 복구 (미리 넣은 '{'와 멈춘 '}'를 다시 결합)
-        raw_text = "{" + output["choices"][0]["text"].strip()
-        if not raw_text.endswith("}"):
-            raw_text += "}"
-
+        raw_text = output["choices"][0]["text"].strip()
+        
+        # JSON 파싱 로직
         try:
-            # 2. 정규식으로 순수 JSON 블록만 추출 (혹시 모를 앞뒤 설명 제거)
-            match = re.search(r"(\{.*\})", raw_text, re.DOTALL)
-            if match:
-                return json.loads(match.group(1))
+            # 1. 마크다운 코드블럭 제거
+            json_str = raw_text.replace("```json", "").replace("```", "").strip()
+            
+            # 2. 가장 바깥쪽 중괄호 {} 찾기
+            start_idx = json_str.find("{")
+            end_idx = json_str.rfind("}")
+            
+            if start_idx != -1 and end_idx != -1:
+                json_str = json_str[start_idx:end_idx+1]
+                return json.loads(json_str)
             else:
-                raise ValueError("JSON 형식을 찾을 수 없음")
+                # 혹시 닫는 괄호만 빠진 경우 복구 시도
+                if start_idx != -1:
+                     # 균형 맞추기 시도 (간단한 복구)
+                     json_str = json_str[start_idx:] + "}"
+                     try:
+                         return json.loads(json_str)
+                     except:
+                         pass
+                
+                raise ValueError(f"JSON 브라켓을 찾을 수 없음: {raw_text[:50]}...")
 
         except Exception as e:
-            logger.error(f"❌ JSON 파싱 에러: {e} | Raw: {raw_text}")
-            # 대비책(Fallback): 질문 생성 실패 시 기본 질문 반환
-            return {
-                "category": "기본",
-                "question": "오늘 하루 기분은 어떠신가요?"
-            }
+            logger.error(f"❌ JSON 파싱 에러: {e} | Raw(일부): {raw_text[:100]}...")
+            return {}
 
     async def ask_plain_text(self, prompt_text: str) -> str:
         """대본 생성을 위한 최적화된 텍스트 생성 메서드"""
