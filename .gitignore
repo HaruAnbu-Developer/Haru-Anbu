@@ -7,6 +7,7 @@ ai-core/.venv/*
 ai-core/.venvw/*
 .venvw/*
 ai-core/.venvw.zip
+
 # Python
 ai_core/__pycache__/*
 *.py[cod]
@@ -22,7 +23,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# lib/ .venvw 이미 위에 있어서 제외
 lib64/
 parts/
 sdist/
@@ -82,3 +83,15 @@ CallManager/src/main/resources/application-dev.yml
 ai-core/checkpoints/*
 ngrok.exe
 CallManager/src/test/java/com/haru_anbu/CallManager/resources/application-test.yml
+
+# 3. Flutter / Dart 관련
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/          # Flutter 빌드 결과물 (가장 용량 많이 차지)
+/ios/Flutter/Generated.xcconfig
+/ios/Flutter/flutter_export_environment.sh
+/android/key.properties
+*.jks
+*.keystore
