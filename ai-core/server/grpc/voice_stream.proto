@@ -19,9 +19,11 @@ message VoiceRequest {
 }
 
 message SessionConfig {
-  string user_id = 1;      // DB 고유 식별자
-  int32 sample_rate = 2;   // 16000 권장
-  string language_code = 3; // "ko-KR"
+  string user_id = 1;           // DB 고유 식별자
+  string session_id = 2;        // Call Manager가 생성한 세션 ID
+  int32 sample_rate = 3;        // 16000 권장
+  string language_code = 4;     // "ko-KR"
+  string phone_number = 5;      // 전화번호 (옵션)
 }
 
 message VoiceResponse {
