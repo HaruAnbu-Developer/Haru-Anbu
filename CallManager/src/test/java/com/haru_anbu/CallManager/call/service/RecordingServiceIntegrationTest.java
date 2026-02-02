@@ -2,6 +2,9 @@ package com.haru_anbu.CallManager.call.service;
 
 import com.haru_anbu.CallManager.call.entity.CallSession;
 import com.haru_anbu.CallManager.call.repository.CallSessionRepository;
+
+import reactor.core.publisher.Mono;
+
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -55,13 +58,25 @@ class RecordingServiceIntegrationTest {
     
     @BeforeEach
     void setupEach() {
-        // AI 클라이언트 Mock 설정 (실제 AI 서버 없이 테스트)
+        // 1. voiceProfileExistsAsync: Mono<Boolean> 반환
         when(aiVoiceProfileClient.voiceProfileExistsAsync(anyString()))
-            .thenReturn(reactor.core.publisher.Mono.just(false));
-        when(aiVoiceProfileClient.createVoiceProfile(anyString(), anyString(), anyString(), anyString()))
-            .thenReturn(true);
+            .thenReturn(Mono.just(false));
+
+        // 2. updateVoiceProfilePathAsync: Mono<Boolean> 반환
         when(aiVoiceProfileClient.updateVoiceProfilePathAsync(anyString(), anyString(), anyString()))
-            .thenReturn(reactor.core.publisher.Mono.just(true));
+            .thenReturn(Mono.just(true));
+
+        // 3. updateVoiceProfilePath: boolean (동기) 반환
+        when(aiVoiceProfileClient.updateVoiceProfilePath(anyString(), anyString(), anyString()))
+            .thenReturn(true);
+
+        // 4. voiceProfileExists: boolean (동기) 반환
+        when(aiVoiceProfileClient.voiceProfileExists(anyString()))
+            .thenReturn(false);
+
+        // 5. createVoiceProfile: void 반환 메서드 (Mock 설정 방식이 다름)
+        // 반환값이 void인 경우 doNothing()이나 doAnswer()를 사용해야 합니다.
+        doNothing().when(aiVoiceProfileClient).createVoiceProfile(anyString(), anyString(), anyString(), anyString());
     }
     
     @AfterAll

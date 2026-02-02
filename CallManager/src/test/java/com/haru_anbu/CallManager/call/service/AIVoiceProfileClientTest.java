@@ -27,10 +27,7 @@ class AIVoiceProfileClientTest {
         mockWebServer.start();
 
         aiClient = new AIVoiceProfileClient(
-                WebClient.create(),
-                mockWebServer.url("/").toString(),
-                "test_api_key",
-                2
+                WebClient.create()
         );
     }
 
