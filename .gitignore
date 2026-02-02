@@ -83,6 +83,7 @@ CallManager/src/main/resources/application-dev.yml
 ai-core/checkpoints/*
 ngrok.exe
 CallManager/src/test/java/com/haru_anbu/CallManager/resources/application-test.yml
+CallManager/src/test/java/com/haru_anbu/CallManager/resources/test-audio/sample.wav
 
 # 3. Flutter / Dart 관련
 .dart_tool/
@@ -95,3 +96,31 @@ build/          # Flutter 빌드 결과물 (가장 용량 많이 차지)
 /android/key.properties
 *.jks
 *.keystore
+frontend/haru-wellness/android/app/google-services.json
+frontend/haru-wellness/ios/Runner/GoogleService-Info.plist
+# Firebase & Secrets
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+lib/firebase_options.dart  # 웹 미지원 시 보안을 위해 추가 권장
+
+# IDEs and Tools
+.metadata
+.idea/
+.vscode/
+*.iml
+
+# Android specific
+android/local.properties
+android/app/*.jks
+android/app/*.keystore
+android/key.properties
+
+# iOS specific
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+
+# Build folders
+build/
+.dart_tool/
