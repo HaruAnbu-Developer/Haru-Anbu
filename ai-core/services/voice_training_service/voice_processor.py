@@ -25,6 +25,50 @@ class VoiceProcessor:
         )
         # 싱글톤으로 관리되는 기존 TTS 서비스 가져오기
         self.tts_service = get_tts_service()
+        
+    # [추가됨] 목소리 파일 업로드 (덮어쓰기 방식)
+    async def upload_raw_voice(self, user_id: str, file_obj, filename: str):
+        from database.schema import VoiceProfile, StatusEnum
+        from database.database import SessionLocal
+        
+        db_session = SessionLocal()
+        try:
+            # 1. 확장자 추출 및 고정 경로 생성
+            ext = os.path.splitext(filename)[1] # .wav, .mp3 등
+            s3_key = f"uploads/{user_id}/{user_id}{ext}"
+            
+            # 2. S3 업로드 (동일 경로이므로 자동 덮어쓰기됨)
+            # file_obj 포인터 초기화
+            file_obj.seek(0)
+            self.s3.upload_fileobj(file_obj, self.bucket_name, s3_key)
+            
+            # 3. DB 프로필 확인 및 업데이트
+            profile = db_session.query(VoiceProfile).filter(VoiceProfile.user_id == user_id).first()
+            
+            if not profile:
+                # 프로필이 없으면 새로 생성
+                profile = VoiceProfile(
+                    user_id=user_id,
+                    raw_wav_path=s3_key,
+                    status=StatusEnum.PENDING # 아직 분석 전이므로 PENDING or NONE
+                )
+                db_session.add(profile)
+            else:
+                # 있으면 경로 업데이트 (확장자가 바뀔 수도 있으므로)
+                profile.raw_wav_path = s3_key
+                # 새 파일이 올라왔으니 상태를 초기화하거나 PENDING으로 유지
+                # (분석은 별도 API /voice/register 호출 시 진행)
+            
+            db_session.commit()
+            print(f"✅ [VoiceProcessor] {user_id} 원본 음성 업로드 완료: {s3_key}")
+            return s3_key
+            
+        except Exception as e:
+            db_session.rollback()
+            print(f"❌ [VoiceProcessor] 업로드 에러: {e}")
+            raise e
+        finally:
+            db_session.close()
 
     async def extract_and_save_latent(self, user_id: str):
         from database.schema import VoiceProfile, StatusEnum
@@ -70,6 +114,7 @@ class VoiceProcessor:
             import shutil
             if os.path.exists("processed"):
                 shutil.rmtree("processed") # 중간 생성 폴더 통째로 삭제
+            db_session.close() # 세션 닫기 추가
 
 if __name__ == "__main__":
     import asyncio

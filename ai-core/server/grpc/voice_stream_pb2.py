@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1eserver/grpc/voice_stream.proto\x12\x0c\x61i.inference\"a\n\x0cVoiceRequest\x12-\n\x06\x63onfig\x18\x01 \x01(\x0b\x32\x1b.ai.inference.SessionConfigH\x00\x12\x17\n\raudio_content\x18\x02 \x01(\x0cH\x00\x42\t\n\x07payload\"L\n\rSessionConfig\x12\x0f\n\x07user_id\x18\x01 \x01(\t\x12\x13\n\x0bsample_rate\x18\x02 \x01(\x05\x12\x15\n\rlanguage_code\x18\x03 \x01(\t\"s\n\rVoiceResponse\x12\x16\n\x0c\x61udio_output\x18\x01 \x01(\x0cH\x00\x12\x14\n\ntranscript\x18\x02 \x01(\tH\x00\x12\x15\n\x0b\x61i_response\x18\x03 \x01(\tH\x00\x12\x12\n\x08is_final\x18\x04 \x01(\x08H\x00\x42\t\n\x07payload2f\n\x11VoiceConversation\x12Q\n\x12StreamConversation\x12\x1a.ai.inference.VoiceRequest\x1a\x1b.ai.inference.VoiceResponse(\x01\x30\x01\x42*\n\x14\x63om.haruanbu.ai.grpcB\x10VoiceStreamProtoP\x01\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1eserver/grpc/voice_stream.proto\x12\x0c\x61i.inference\"a\n\x0cVoiceRequest\x12-\n\x06\x63onfig\x18\x01 \x01(\x0b\x32\x1b.ai.inference.SessionConfigH\x00\x12\x17\n\raudio_content\x18\x02 \x01(\x0cH\x00\x42\t\n\x07payload\"v\n\rSessionConfig\x12\x0f\n\x07user_id\x18\x01 \x01(\t\x12\x12\n\nsession_id\x18\x02 \x01(\t\x12\x13\n\x0bsample_rate\x18\x03 \x01(\x05\x12\x15\n\rlanguage_code\x18\x04 \x01(\t\x12\x14\n\x0cphone_number\x18\x05 \x01(\t\"s\n\rVoiceResponse\x12\x16\n\x0c\x61udio_output\x18\x01 \x01(\x0cH\x00\x12\x14\n\ntranscript\x18\x02 \x01(\tH\x00\x12\x15\n\x0b\x61i_response\x18\x03 \x01(\tH\x00\x12\x12\n\x08is_final\x18\x04 \x01(\x08H\x00\x42\t\n\x07payload2f\n\x11VoiceConversation\x12Q\n\x12StreamConversation\x12\x1a.ai.inference.VoiceRequest\x1a\x1b.ai.inference.VoiceResponse(\x01\x30\x01\x42*\n\x14\x63om.haruanbu.ai.grpcB\x10VoiceStreamProtoP\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -35,9 +35,9 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_VOICEREQUEST']._serialized_start=48
   _globals['_VOICEREQUEST']._serialized_end=145
   _globals['_SESSIONCONFIG']._serialized_start=147
-  _globals['_SESSIONCONFIG']._serialized_end=223
-  _globals['_VOICERESPONSE']._serialized_start=225
-  _globals['_VOICERESPONSE']._serialized_end=340
-  _globals['_VOICECONVERSATION']._serialized_start=342
-  _globals['_VOICECONVERSATION']._serialized_end=444
+  _globals['_SESSIONCONFIG']._serialized_end=265
+  _globals['_VOICERESPONSE']._serialized_start=267
+  _globals['_VOICERESPONSE']._serialized_end=382
+  _globals['_VOICECONVERSATION']._serialized_start=384
+  _globals['_VOICECONVERSATION']._serialized_end=486
 # @@protoc_insertion_point(module_scope)

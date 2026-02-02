@@ -1,3 +1,4 @@
+#server/connect_back/controller.py
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -17,6 +18,25 @@ from datetime import datetime, date, timedelta
 app = FastAPI()
 voice_processor = VoiceProcessor() # 전용 객체 생성
 latent_manager = get_latent_manager()
+
+@app.post("/voice/upload/{user_id}")
+async def upload_voice(user_id: str, file: UploadFile = File(...)):
+    """
+    사용자의 목소리 파일을 업로드합니다.
+    기존 파일이 있다면 덮어씌워집니다 (user_id 하나당 하나의 목소리 파일).
+    """
+    try:
+        # processor의 업로드 메서드 호출
+        s3_path = await voice_processor.upload_raw_voice(user_id, file.file, file.filename)
+        
+        return {
+            "status": "success", 
+            "message": "목소리 파일이 업로드되었습니다.",
+            "path": s3_path
+        }
+    except Exception as e:
+        return {"status": "error", "message": f"업로드 실패: {str(e)}"}
+    
 @app.post("/voice/register/{user_id}")
 async def register_voice(
     user_id: str, 
