@@ -2,7 +2,7 @@
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-from fastapi import FastAPI, BackgroundTasks, Depends , APIRouter, HTTPException
+from fastapi import FastAPI, BackgroundTasks, Depends, APIRouter, HTTPException, UploadFile, File
 from services.voice_training_service.voice_processor import VoiceProcessor
 from services.voice_training_service.latent_manager import get_latent_manager
 from database.schema import VoiceProfile, StatusEnum 
@@ -86,7 +86,6 @@ async def release_voice(user_id: str):
     latent_manager.release_user(user_id)
     return {"status": "released"}
 
-
 @app.post("/force-midnight-job")
 async def force_midnight_job(db: Session = Depends(get_db)):
     try:
@@ -114,6 +113,7 @@ async def force_midnight_job(db: Session = Depends(get_db)):
             "script": script,
             "new_question": new_question
         }
+        
     except Exception as e:
         print(f"❌ 테스트 중 오류 발생: {e}")
         raise HTTPException(status_code=500, detail=str(e))
