@@ -1,6 +1,6 @@
 # Dependencies
 node_modules/
-
+haru-frontend/package-lock.json
 # Build output
 build/
 dist/

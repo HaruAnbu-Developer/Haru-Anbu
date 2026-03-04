@@ -22,6 +22,6 @@ public class WebSocketConfig implements WebSocketConfigurer {
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry
             .addHandler(twilioMediaStreamHandler, "/ws/twilio/media-stream")
-            .setAllowedOrigins("*"); // Production에서는 Twilio IP만 허용 권장
+            .setAllowedOrigins("*"); // TODO: Production에서는 Twilio IP만 허용 권장
     }
 }

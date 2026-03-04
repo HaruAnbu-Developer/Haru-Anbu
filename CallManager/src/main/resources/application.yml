@@ -59,12 +59,12 @@ twilio:
   account-sid: ${TWILIO_ACCOUNT_SID}
   auth-token: ${TWILIO_AUTH_TOKEN}
   phone-number: ${TWILIO_PHONE_NUMBER}
-  webhook-base-url: ${WEBHOOK_BASE_URL:https://your-domain.com}
+  webhook-base-url: ${WEBHOOK_BASE_URL}
 
 # gRPC Configuration
 grpc:
   ai-service:
-    host: ${GRPC_AI_SERVICE_HOST:localhost}
+    host: ${GRPC_AI_SERVICE_HOST:localhost} # TODO: 임시 하드코딩
     port: ${GRPC_AI_SERVICE_PORT:50051}
     max-inbound-message-size: 10485760  # 10MB
     keepalive-time: 30  # seconds
