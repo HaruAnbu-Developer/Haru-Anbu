@@ -1,7 +1,20 @@
+# Dependencies
+node_modules/
+
+# Build output
+build/
+dist/
+
 # Environment variables
 .env
 .env.local
 .env.*.local
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
 ai-core/data/*
 ai-core/.venv/*
 ai-core/.venvw/*
@@ -124,3 +137,9 @@ ios/Flutter/flutter_export_environment.sh
 # Build folders
 build/
 .dart_tool/
+
+# Logs
+npm-debug.log*
+
+# Editor
+.DS_Store
