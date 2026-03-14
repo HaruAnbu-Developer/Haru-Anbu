@@ -68,24 +68,22 @@ public class OAuth2LoginHandler implements AuthenticationSuccessHandler {
                 // JWT를 HttpOnly 쿠키로 설정 (7일)
                 Cookie jwtCookie = new Cookie("accessToken", jwt);
                 jwtCookie.setHttpOnly(true);
-                jwtCookie.setSecure(true); // HTTPS에서만 전송
+                jwtCookie.setSecure(false);
                 jwtCookie.setPath("/");
-                jwtCookie.setMaxAge(7 * 24 * 60 * 60); // 7일
-                // SameSite는 Spring Boot 2.6+ 에서 자동 설정됨
+                jwtCookie.setMaxAge(7 * 24 * 60 * 60);
                 response.addCookie(jwtCookie);
 
                 // 리프레시 토큰을 HttpOnly 쿠키로 설정 (7일)
                 Cookie refreshCookie = new Cookie("refreshToken", refreshToken.getToken());
                 refreshCookie.setHttpOnly(true);
-                refreshCookie.setSecure(true);
+                refreshCookie.setSecure(false);
                 refreshCookie.setPath("/");
-                refreshCookie.setMaxAge(7 * 24 * 60 * 60); // 7일
-                // SameSite는 Spring Boot 2.6+ 에서 자동 설정됨
+                refreshCookie.setMaxAge(7 * 24 * 60 * 60);
                 response.addCookie(refreshCookie);
 
-                // 성공 페이지로 리다이렉트 (토큰은 쿠키에 있으므로 URL 파라미터 불필요)
+                // 프론트엔드로 리다이렉트
                 String redirectUrl = String.format(
-                    "https://cheongchun-backend-40635111975.asia-northeast3.run.app/auth/oauth-success?userId=%s&email=%s&name=%s&provider=%s",
+                    "http://localhost:3000/oauth/callback?userId=%s&email=%s&name=%s&provider=%s",
                     user.getId(),
                     java.net.URLEncoder.encode(customUser.getEmail(), "UTF-8"),
                     java.net.URLEncoder.encode(customUser.getUserName(), "UTF-8"),
@@ -94,16 +92,14 @@ public class OAuth2LoginHandler implements AuthenticationSuccessHandler {
                 response.sendRedirect(redirectUrl);
 
             } else {
-                // 실패 시에도 리다이렉트
-                String errorUrl = "https://cheongchun-backend-40635111975.asia-northeast3.run.app/auth/oauth-error?code=unsupported_principal_type&message=" +
+                String errorUrl = "http://localhost:3000/login?error=unsupported_principal_type&message=" +
                                 java.net.URLEncoder.encode("지원하지 않는 사용자 타입입니다", "UTF-8");
                 response.sendRedirect(errorUrl);
             }
         } catch (Exception e) {
             logger.error("OAuth2 로그인 처리 중 오류 발생", e);
-            // 오류 시에도 리다이렉트
             String errorUrl = String.format(
-                "https://cheongchun-backend-40635111975.asia-northeast3.run.app/auth/oauth-error?code=oauth2_processing_error&message=%s",
+                "http://localhost:3000/login?error=oauth2_processing_error&message=%s",
                 java.net.URLEncoder.encode("OAuth2 로그인 처리 중 오류가 발생했습니다: " + e.getMessage(), "UTF-8")
             );
             response.sendRedirect(errorUrl);
