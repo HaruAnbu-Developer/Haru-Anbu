@@ -1,9 +1,11 @@
 package com.cheongchun.backend.auth.controller;
 
 import com.cheongchun.backend.auth.dto.request.LoginRequest;
+import com.cheongchun.backend.auth.dto.request.OAuthCodeRequest;
 import com.cheongchun.backend.auth.dto.request.SignUpRequest;
 import com.cheongchun.backend.auth.service.AuthService;
 import com.cheongchun.backend.auth.service.EmailVerificationService;
+import com.cheongchun.backend.oauth.service.KakaoOAuthService;
 
 import com.cheongchun.backend.user.dto.UserResponse;
 import com.cheongchun.backend.user.domain.User;
@@ -16,6 +18,8 @@ import com.cheongchun.backend.global.common.dto.ApiResponse;
 import com.cheongchun.backend.global.common.util.ControllerUtils;
 import com.cheongchun.backend.global.security.JwtUtil;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -26,6 +30,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+@Tag(name = "Auth", description = "회원가입, 로그인, 이메일 인증, 로그아웃 API")
 @RestController
 @RequestMapping("/auth")
 @CrossOrigin(origins = "*", maxAge = 3600)
@@ -38,21 +43,25 @@ public class AuthController {
     private final RefreshTokenService refreshTokenService;
     private final UserMapper userMapper;
     private final EmailVerificationService emailVerificationService;
+    private final KakaoOAuthService kakaoOAuthService;
 
-    public AuthController(AuthService authService, JwtUtil jwtUtil, RefreshTokenService refreshTokenService, UserMapper userMapper ,EmailVerificationService emailVerificationService) {
+    public AuthController(AuthService authService, JwtUtil jwtUtil, RefreshTokenService refreshTokenService,
+                          UserMapper userMapper, EmailVerificationService emailVerificationService,
+                          KakaoOAuthService kakaoOAuthService) {
         this.authService = authService;
         this.jwtUtil = jwtUtil;
         this.refreshTokenService = refreshTokenService;
         this.userMapper = userMapper;
         this.emailVerificationService = emailVerificationService;
+        this.kakaoOAuthService = kakaoOAuthService;
     }
 
+    @Operation(summary = "회원가입", description = "사용자명, 이메일, 비밀번호, 이름으로 새 계정을 생성합니다.")
     @PostMapping("/signup")
     public ResponseEntity<ApiResponse<UserResponse>> registerUser(@Valid @RequestBody SignUpRequest signUpRequest,
                                           HttpServletRequest request, HttpServletResponse response) {
         try {
-            User newUser = authService.createUser(signUpRequest);
-            emailVerificationService.sendVerificationEmail(newUser);
+            User newUser = authService.registerUser(signUpRequest);
 
             UserResponse userResponse = userMapper.toUserResponse(newUser);
             ApiResponse<UserResponse> apiResponse = ApiResponse.success(userResponse, "회원가입이 완료되었습니다");
@@ -69,6 +78,7 @@ public class AuthController {
         }
     }
 
+    @Operation(summary = "이메일 인증", description = "회원가입 시 발송된 이메일의 인증 토큰을 검증합니다.")
     @GetMapping("/verify-email")
     public ResponseEntity<?> verifyEmail(@RequestParam String token) {
         try {
@@ -98,6 +108,7 @@ public class AuthController {
         }
     }
 
+    @Operation(summary = "인증 이메일 재발송", description = "이메일 인증 메일을 다시 발송합니다.")
     @PostMapping("/resend-verification")
     public ResponseEntity<ApiResponse<Void>> resendVerificationEmail(@RequestParam String email) {
         try {
@@ -127,6 +138,7 @@ public class AuthController {
         }
     }
 
+    @Operation(summary = "로그인", description = "사용자명 또는 이메일과 비밀번호로 로그인합니다. 인증 쿠키가 설정됩니다.")
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<UserResponse>> authenticateUser(@Valid @RequestBody LoginRequest loginRequest,
                                               HttpServletRequest request, HttpServletResponse response) {
@@ -156,6 +168,7 @@ public class AuthController {
         }
     }
 
+    @Operation(summary = "현재 사용자 정보 조회", description = "인증된 현재 사용자의 정보를 조회합니다.")
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<UserResponse>> getCurrentUser() {
         try {
@@ -185,6 +198,70 @@ public class AuthController {
         }
     }
 
+    @Operation(summary = "Kakao 로그인", description = "Kakao OAuth 인가 코드로 로그인합니다.")
+    @PostMapping("/oauth/kakao")
+    public ResponseEntity<ApiResponse<UserResponse>> kakaoLogin(@Valid @RequestBody OAuthCodeRequest oAuthCodeRequest,
+                                                                 HttpServletRequest request, HttpServletResponse response) {
+        try {
+            User user = kakaoOAuthService.loginWithKakaoCode(oAuthCodeRequest.getCode(), oAuthCodeRequest.getRedirectUri());
+
+            String jwt = jwtUtil.generateTokenFromUsername(user.getEmail());
+
+            String userAgent = request.getHeader("User-Agent");
+            String ipAddress = ControllerUtils.getClientIpAddress(request);
+            RefreshToken refreshToken = refreshTokenService.createRefreshToken(user, userAgent, ipAddress);
+
+            setAuthCookies(response, jwt, refreshToken.getToken());
+
+            UserResponse userResponse = userMapper.toUserResponse(user);
+            ApiResponse<UserResponse> apiResponse = ApiResponse.success(userResponse, "Kakao 로그인이 완료되었습니다");
+
+            return ResponseEntity.ok(apiResponse);
+        } catch (Exception e) {
+            logger.error("Kakao 로그인 중 오류 발생", e);
+            ApiResponse<UserResponse> errorResponse = ApiResponse.error(
+                "KAKAO_LOGIN_FAILED",
+                e.getMessage(),
+                "Kakao 로그인 중 오류가 발생했습니다"
+            );
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
+    }
+
+    @Operation(summary = "로그아웃", description = "현재 세션을 종료하고 인증 쿠키를 삭제합니다.")
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse<Void>> logout(HttpServletRequest request, HttpServletResponse response) {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication != null && authentication.getPrincipal() instanceof User user) {
+                // 쿠키에서 리프레시 토큰 읽기
+                String refreshTokenStr = null;
+                if (request.getCookies() != null) {
+                    for (jakarta.servlet.http.Cookie cookie : request.getCookies()) {
+                        if ("refreshToken".equals(cookie.getName())) {
+                            refreshTokenStr = cookie.getValue();
+                            break;
+                        }
+                    }
+                }
+                authService.logout(user, refreshTokenStr);
+            }
+
+            // 쿠키 삭제
+            clearAuthCookies(response);
+
+            ApiResponse<Void> apiResponse = ApiResponse.success(null, "로그아웃이 완료되었습니다");
+            return ResponseEntity.ok(apiResponse);
+        } catch (Exception e) {
+            logger.error("로그아웃 중 오류 발생", e);
+            // 오류가 발생해도 쿠키는 삭제
+            clearAuthCookies(response);
+            ApiResponse<Void> apiResponse = ApiResponse.success(null, "로그아웃이 완료되었습니다");
+            return ResponseEntity.ok(apiResponse);
+        }
+    }
+
+    @Operation(summary = "API 테스트", description = "인증 API가 정상 작동하는지 확인하는 테스트 엔드포인트입니다.")
     @GetMapping("/test")
     public ResponseEntity<ApiResponse<String>> testEndpoint() {
         ApiResponse<String> response = ApiResponse.success("cheongchun-backend", "인증 API가 정상적으로 작동하고 있습니다");
@@ -194,16 +271,32 @@ public class AuthController {
     private void setAuthCookies(HttpServletResponse response, String accessToken, String refreshToken) {
         jakarta.servlet.http.Cookie jwtCookie = new jakarta.servlet.http.Cookie("accessToken", accessToken);
         jwtCookie.setHttpOnly(true);
-        jwtCookie.setSecure(true);
+        jwtCookie.setSecure(false);
         jwtCookie.setPath("/");
         jwtCookie.setMaxAge(7 * 24 * 60 * 60);
         response.addCookie(jwtCookie);
 
         jakarta.servlet.http.Cookie refreshCookie = new jakarta.servlet.http.Cookie("refreshToken", refreshToken);
         refreshCookie.setHttpOnly(true);
-        refreshCookie.setSecure(true);
+        refreshCookie.setSecure(false);
         refreshCookie.setPath("/");
         refreshCookie.setMaxAge(7 * 24 * 60 * 60);
+        response.addCookie(refreshCookie);
+    }
+
+    private void clearAuthCookies(HttpServletResponse response) {
+        jakarta.servlet.http.Cookie jwtCookie = new jakarta.servlet.http.Cookie("accessToken", "");
+        jwtCookie.setHttpOnly(true);
+        jwtCookie.setSecure(false);
+        jwtCookie.setPath("/");
+        jwtCookie.setMaxAge(0);
+        response.addCookie(jwtCookie);
+
+        jakarta.servlet.http.Cookie refreshCookie = new jakarta.servlet.http.Cookie("refreshToken", "");
+        refreshCookie.setHttpOnly(true);
+        refreshCookie.setSecure(false);
+        refreshCookie.setPath("/");
+        refreshCookie.setMaxAge(0);
         response.addCookie(refreshCookie);
     }
 

@@ -27,14 +27,17 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final RefreshTokenService refreshTokenService;
+    private final EmailVerificationService emailVerificationService;
 
     public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder,
                        AuthenticationManager authenticationManager,
-                       RefreshTokenService refreshTokenService) {
+                       RefreshTokenService refreshTokenService,
+                       EmailVerificationService emailVerificationService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.refreshTokenService = refreshTokenService;
+        this.emailVerificationService = emailVerificationService;
     }
 
     @Transactional
@@ -59,6 +62,14 @@ public class AuthService {
         return userRepository.save(user);
     }
 
+    @Transactional
+    public User registerUser(SignUpRequest signUpRequest) {
+        User newUser = createUser(signUpRequest);
+        // TODO: SMTP 설정 완료 후 이메일 발송 다시 활성화
+        // emailVerificationService.sendVerificationEmail(newUser);
+        return newUser;
+    }
+
 
     public User authenticateUserCookie(LoginRequest loginRequest) {
         Authentication authentication = authenticationManager.authenticate(
@@ -70,10 +81,11 @@ public class AuthService {
 
         User authenticatedUser = (User) authentication.getPrincipal();
 
-        if (authenticatedUser.getProviderType() == User.ProviderType.LOCAL &&
-                !authenticatedUser.isEmailVerified()) {
-            throw new BusinessException(ErrorCode.EMAIL_NOT_VERIFIED, "이메일 인증이 필요합니다. 메일함을 확인해주세요.");
-        }
+        // TODO: SMTP 설정 완료 후 이메일 인증 체크 다시 활성화
+        // if (authenticatedUser.getProviderType() == User.ProviderType.LOCAL &&
+        //         !authenticatedUser.isEmailVerified()) {
+        //     throw new BusinessException(ErrorCode.EMAIL_NOT_VERIFIED, "이메일 인증이 필요합니다. 메일함을 확인해주세요.");
+        // }
 
         return authenticatedUser;
     }
