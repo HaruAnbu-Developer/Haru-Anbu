@@ -63,10 +63,13 @@ public class SecurityConfig {
                         .requestMatchers("/auth/**").permitAll()  // 인증 관련
                         .requestMatchers("/oauth2/**").permitAll() // OAuth2 관련
 
-                        // 개발 단계에서는 모든 API 허용 (주석 해제 시)
-                        // .requestMatchers("/api/**").permitAll()
+                        // Swagger UI
+                        .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
 
-                        .anyRequest().authenticated()
+                        // 개발 단계에서는 모든 API 허용 (주석 해제 시)
+                         .requestMatchers("/api/**").permitAll()
+//
+//                        .anyRequest().authenticated()
                 )
                 .oauth2Login(oauth2Config::configureOAuth2Login)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

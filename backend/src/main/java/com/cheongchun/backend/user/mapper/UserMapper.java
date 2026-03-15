@@ -21,6 +21,9 @@ public class UserMapper {
         response.setProvider(user.getProviderType() != null ? user.getProviderType().toString() : null);
         response.setEmailVerified(user.isEmailVerified());
         response.setProfileImageUrl(user.getProfileImageUrl());
+        response.setPhoneNumber(user.getPhoneNumber());
+        response.setDateOfBirth(user.getDateOfBirth());
+        response.setCreatedAt(user.getCreatedAt());
 
         return response;
     }
