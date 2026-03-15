@@ -5,6 +5,9 @@ haru-frontend/package-lock.json
 build/
 dist/
 
+# 인프라 설정 (terraform, ansible 등)
+spring-ec2-infra
+
 # Environment variables
 .env
 .env.local
