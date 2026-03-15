@@ -1,0 +1,43 @@
+package com.cheongchun.backend.user.mapper;
+
+import com.cheongchun.backend.user.dto.UserResponse;
+import com.cheongchun.backend.user.domain.User;
+import org.springframework.stereotype.Component;
+
+@Component
+public class UserMapper {
+
+    public UserResponse toUserResponse(User user) {
+        if (user == null) {
+            return null;
+        }
+
+        UserResponse response = new UserResponse();
+        response.setId(user.getId());
+        response.setEmail(user.getEmail());
+        response.setName(user.getName());
+        response.setUsername(user.getUsername());
+        response.setRole(user.getRole() != null ? user.getRole().toString() : null);
+        response.setProvider(user.getProviderType() != null ? user.getProviderType().toString() : null);
+        response.setEmailVerified(user.isEmailVerified());
+        response.setProfileImageUrl(user.getProfileImageUrl());
+        response.setPhoneNumber(user.getPhoneNumber());
+        response.setDateOfBirth(user.getDateOfBirth());
+        response.setCreatedAt(user.getCreatedAt());
+
+        return response;
+    }
+
+    public UserResponse toBasicUserResponse(User user) {
+        if (user == null) {
+            return null;
+        }
+
+        UserResponse response = new UserResponse();
+        response.setId(user.getId());
+        response.setEmail(user.getEmail());
+        response.setName(user.getName());
+
+        return response;
+    }
+}
