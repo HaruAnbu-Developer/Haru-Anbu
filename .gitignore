@@ -146,3 +146,8 @@ npm-debug.log*
 
 # Editor
 .DS_Store
+
+#backend
+.gradle/
+bin/
+build/
