@@ -9,6 +9,13 @@ public enum ErrorCode {
     EMAIL_NOT_VERIFIED("USER_005", "이메일 인증이 필요합니다"),
     EMAIL_ALREADY_VERIFIED("USER_006", "이미 인증된 계정입니다"),
     EMAIL_SEND_FAILED("USER_007", "이메일 발송에 실패했습니다"),
+    INVALID_CURRENT_PASSWORD("USER_008", "현재 비밀번호가 일치하지 않습니다"),
+    PASSWORD_MISMATCH("USER_009", "새 비밀번호와 확인 비밀번호가 일치하지 않습니다"),
+    OAUTH_USER_PASSWORD_CHANGE("USER_010", "소셜 로그인 사용자는 비밀번호를 변경할 수 없습니다"),
+    USERNAME_ALREADY_EXISTS("USER_011", "이미 사용 중인 아이디입니다"),
+    INVALID_CONFIRMATION_TEXT("USER_012", "삭제 확인 문구가 일치하지 않습니다"),
+    SAME_AS_CURRENT_PASSWORD("USER_013", "새 비밀번호가 현재 비밀번호와 동일합니다"),
+    SAME_AS_CURRENT_USERNAME("USER_014", "새 아이디가 현재 아이디와 동일합니다"),
 
     // Authentication related errors
     INVALID_TOKEN("AUTH_001", "유효하지 않은 토큰입니다"),
