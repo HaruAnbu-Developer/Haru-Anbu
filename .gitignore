@@ -24,6 +24,10 @@ ai-core/.venvw/*
 .venvw/*
 ai-core/.venvw.zip
 
+*.pth
+checkpoints/
+models/
+
 # Python
 ai_core/__pycache__/*
 *.py[cod]
