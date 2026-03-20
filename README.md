@@ -1,4 +1,4 @@
-# Haru-Anbu AI Core
+# Haru-Anbu
 
 노인 돌봄을 위한 AI 음성 대화 시스템
 
@@ -25,206 +25,342 @@
 
 ## 기술 스택
 
-### Core Framework
-- **FastAPI** (0.104.1) - REST API
-- **gRPC** + **Protobuf** - 실시간 스트리밍
-- **SQLAlchemy** (2.0.23) + **Alembic** - ORM 및 마이그레이션
-- **PyTorch** (2.1.1) - 딥러닝 프레임워크
+### CallManager (Java/Spring Boot) - 실시간 미들웨어
 
-### AI/ML Models
-- **Faster-Whisper** - 음성 인식 (Speech-to-Text)
-- **Gemma-2-9B-IT** - 대화 생성 언어 모델 (via llama-cpp)
-- **OpenVoice V2** - 음성 클로닝 및 TTS
-- **Silero VAD** - 음성 활동 감지
-- **Sentence Transformers** - 텍스트 임베딩
-- **FAISS** - 벡터 유사도 검색
+| Category | Technology | Version | Purpose |
+| :--- | :--- | :--- | :--- |
+| **Language** | Java | 17 | 엔터프라이즈급 안정성 |
+| **Framework** | Spring Boot | 3.5.7 | 백엔드 프레임워크 |
+| **Communication** | gRPC | 1.76.0 | AI 서버 양방향 스트리밍 |
+| **Real-time** | WebSocket | - | Twilio 실시간 통신 |
+| **Telephony** | Twilio Voice API | 9.14.1 | 전화 통신 |
+| **Database** | MySQL | 8.0 | 세션/대화 데이터 |
+| **Storage** | AWS S3 SDK | 2.20.26 | 녹음 파일 저장 |
+| **Build Tool** | Gradle | 8.14.3 | 빌드 자동화 |
+| **Testing** | JUnit 5 | - | 단위/통합 테스트 |
+| **Container** | Docker | - | 컨테이너화 |
+
+### ai-core (Python) - AI 음성 처리 서버
+
+| Category | Technology | Version | Purpose |
+| :--- | :--- | :--- | :--- |
+| **Framework** | FastAPI | 0.104.1 | REST API |
+| **Communication** | gRPC + Protobuf | - | 실시간 스트리밍 |
+| **Database** | SQLAlchemy | 2.0.23 | ORM |
+| **Deep Learning** | PyTorch | 2.1.1 | 딥러닝 프레임워크 |
+| **STT** | Faster-Whisper | - | 음성 인식 |
+| **LLM** | Gemma-2-9B-IT | - | 대화 생성 (llama-cpp) |
+| **TTS** | OpenVoice V2 | - | 음성 클로닝 및 합성 |
+| **VAD** | Silero VAD | - | 음성 활동 감지 |
+| **Audio** | librosa, soundfile | - | 오디오 처리 |
+| **Scheduler** | APScheduler | - | 일일 배치 작업 |
+| **Task Queue** | Celery | - | 백그라운드 작업 |
+
+### Backend (Java/Spring Boot) - 보호자 앱 API 서버
+
+| Category | Technology | Version | Purpose |
+| :--- | :--- | :--- | :--- |
+| **Language** | Java | 17 | 엔터프라이즈급 안정성 |
+| **Framework** | Spring Boot | 3.5.9 | 백엔드 프레임워크 |
+| **Security** | Spring Security + JWT | - | 인증/인가 |
+| **OAuth2** | Spring OAuth2 Client | - | 소셜 로그인 |
+| **Database** | MariaDB (MySQL 호환) | - | 사용자 데이터 |
+| **Cache** | Spring Data Redis | - | 세션/캐싱 |
+| **API Docs** | SpringDoc OpenAPI | 2.8.4 | Swagger UI |
+| **Build Tool** | Gradle | 8.14.3 | 빌드 자동화 |
 
 ### Infrastructure
-- **AWS S3** - 음성 파일 및 모델 저장
-- **AWS RDS** (MySQL) - 데이터베이스
-- **Redis** - 캐싱
-- **APScheduler** - 일일 배치 작업 (자정 실행)
-- **Celery** - 백그라운드 작업 큐
 
-### Audio Processing
-- **librosa** - 오디오 특징 추출
-- **soundfile** - WAV 파일 I/O
-- **PyAudio** - 마이크/스피커 I/O
+* **Storage**: AWS S3 (녹음 파일, 목소리 프로필, 모델 체크포인트)
+* **Database**: AWS RDS (MySQL 8.0)
+* **Container**: Docker, Docker Compose
+* **CI/CD**: Terraform, Ansible
 
 ---
 
 ## 프로젝트 구조
-
 ```
 Haru-Anbu/
-├── ai-core/
-│   ├── database/              # 데이터베이스 스키마 및 연결
-│   │   ├── database.py        # DB 초기화
-│   │   └── models.py          # SQLAlchemy 모델
-│   │
+├── CallManager/                    # Java Spring Boot 미들웨어
+│   ├── src/main/java/
+│   │   └── com/haru_anbu/CallManager/
+│   │       ├── call/
+│   │       │   ├── config/        # gRPC, Twilio, S3, WebSocket 설정
+│   │       │   │   ├── GrpcClientConfig.java
+│   │       │   │   ├── TwilioConfig.java
+│   │       │   │   ├── S3Config.java
+│   │       │   │   └── WebSocketConfig.java
+│   │       │   ├── controller/    # REST API 컨트롤러
+│   │       │   │   ├── CallController.java
+│   │       │   │   ├── RecordingController.java
+│   │       │   │   └── TwilioWebHookController.java
+│   │       │   ├── service/       # 비즈니스 로직
+│   │       │   │   ├── CallManagerService.java
+│   │       │   │   ├── CallSessionService.java
+│   │       │   │   ├── TwilioService.java
+│   │       │   │   ├── RecordingService.java
+│   │       │   │   ├── S3StorageService.java
+│   │       │   │   ├── AIVoiceProfileClient.java
+│   │       │   │   └── VoiceConversationGrpcService.java
+│   │       │   ├── handler/       # WebSocket 핸들러
+│   │       │   │   └── TwilioMediaStreamHandler.java
+│   │       │   ├── scheduler/     # 스케줄러
+│   │       │   │   └── SessionCleanupScheduler.java
+│   │       │   ├── entity/        # JPA 엔티티
+│   │       │   │   ├── CallSession.java
+│   │       │   │   └── Conversation.java
+│   │       │   ├── repository/    # JPA 레포지토리
+│   │       │   │   ├── CallSessionRepository.java
+│   │       │   │   └── ConversationRepository.java
+│   │       │   ├── dto/           # 데이터 전송 객체
+│   │       │   │   ├── AudioDto.java
+│   │       │   │   ├── CallSessionDto.java
+│   │       │   │   ├── CallRequestResponse.java
+│   │       │   │   ├── AIServiceDto.java
+│   │       │   │   ├── TwilioWebhookDto.java
+│   │       │   │   └── WebSocketMessageDto.java
+│   │       │   └── util/
+│   │       │       └── AudioConverter.java  # mulaw ↔ PCM 오디오 변환
+│   │       └── grpc/              # gRPC 생성 코드
+│   ├── src/main/proto/
+│   │   └── ai_service.proto       # Protocol Buffers 정의
+│   ├── src/main/resources/
+│   │   └── application.yml
+│   ├── src/test/                  # 테스트 코드
+│   │   └── java/.../call/
+│   │       ├── CallManagerApplicationTests.java
+│   │       ├── handler/TwilioMediaStreamHandlerTest.java
+│   │       ├── service/CallSessionServiceTest.java
+│   │       ├── service/RecordingServiceIntegrationTest.java
+│   │       ├── service/S3StorageServiceTest.java
+│   │       └── util/AudioConverterTest.java
+│   ├── build.gradle
+│   ├── Dockerfile
+│   └── SETUP.md
+│
+├── ai-core/                        # Python AI 서비스
+│   ├── database/
+│   │   ├── database.py            # DB 연결 및 초기화
+│   │   └── schema.py              # SQLAlchemy 모델
 │   ├── server/
-│   │   ├── grpc/              # gRPC 프로토콜 정의
-│   │   │   └── voice_conversation.proto
-│   │   └── connect_back/      # FastAPI REST 엔드포인트
-│   │       └── controller.py  # 음성 관리 API
-│   │
-│   ├── services/              # 핵심 AI/ML 서비스
-│   │   ├── stt/               # Speech-to-Text
+│   │   ├── grpc/                  # gRPC 서비스
+│   │   │   ├── voice_stream.proto
+│   │   │   ├── voice_stream_pb2.py
+│   │   │   └── voice_stream_pb2_grpc.py
+│   │   └── connect_back/
+│   │       └── controller.py      # 음성 관리 REST 엔드포인트
+│   ├── services/
+│   │   ├── stt/
 │   │   │   ├── stt_service.py
 │   │   │   └── vad_service.py
-│   │   ├── tts/               # Text-to-Speech
+│   │   ├── tts/
 │   │   │   └── tts_service.py
-│   │   ├── llm/               # 언어 모델
+│   │   ├── llm/
 │   │   │   ├── llm_service_Gemma_stream.py
 │   │   │   └── conversation_manager.py
-│   │   ├── call_service/      # 통화 처리 및 스트리밍
-│   │   │   └── call_service.py
-│   │   ├── emotion_analysis_service/  # 대화 분석
+│   │   ├── call_service/
+│   │   │   └── call_service.py    # gRPC 서버 진입점
+│   │   ├── emotion_analysis_service/
 │   │   │   └── analysis_service.py
-│   │   ├── voice_training_service/    # 음성 클로닝
+│   │   ├── voice_training_service/
 │   │   │   ├── voice_processor.py
 │   │   │   └── latent_manager.py
-│   │   └── radio_service/     # 라디오 방송 생성
+│   │   └── radio_service/
 │   │       ├── radio_pipeline.py
 │   │       ├── question_generator.py
 │   │       ├── merge_daily_answer.py
 │   │       └── scheduler.py
-│   │
-│   ├── checkpoints/           # 사전 학습 모델 가중치
-│   │   ├── converter/         # OpenVoice 모델
-│   │   └── base_speakers/     # 기본 TTS 화자
-│   │
-│   ├── test/                  # 테스트 파일 및 샘플 오디오
+│   ├── checkpoints/
+│   │   ├── converter/             # OpenVoice 모델
+│   │   └── base_speakers/
+│   ├── test/
 │   │   ├── test_gpu.py
 │   │   ├── test_S3.py
-│   │   ├── radio_test.py
-│   │   └── test_analysis_batch.py
-│   │
-│   └── requirements.txt       # Python 패키지 의존성
+│   │   └── radio_test.py
+│   ├── mic_to_grpc.py             # 로컬 마이크 gRPC 테스트 클라이언트
+│   └── requirements.txt
 │
-├── .env                       # 환경 변수 (AWS, DB 설정)
-└── README.md                  # 본 문서
+├── backend/                        # Java Spring Boot 보호자 API 서버
+│   ├── src/main/java/
+│   │   └── com/cheongchun/backend/
+│   │       ├── auth/              # 인증 (회원가입, 로그인, 이메일 인증)
+│   │       ├── user/              # 사용자 프로필 관리
+│   │       ├── token/             # RefreshToken 관리
+│   │       ├── oauth/             # OAuth2 소셜 로그인
+│   │       └── global/            # 공통 설정, 보안, 예외 처리
+│   ├── src/main/resources/
+│   │   └── application.yml
+│   ├── src/test/
+│   └── build.gradle
+│
+├── docker-compose.yml
+├── .env
+├── .gitignore
+└── README.md
 ```
 
 ---
 
-## 데이터베이스 스키마
+## 주요 데이터베이스 스키마
 
-### 주요 테이블
+### CallManager (Spring Boot)
+| 테이블명 | 주요 역할 | 핵심 데이터 |
+| :--- | :--- | :--- |
+| **call_sessions** | 통화 세션 및 라이프사이클 관리 | 세션 상태(IN_PROGRESS 등), 시작/종료 시각, S3 녹음 URL |
+| **conversations** | 실시간 대화 내용 저장 | 세션 ID, 역할(user/ai), STT/LLM 텍스트 |
 
-#### 1. VoiceProfile
-사용자별 음성 프로필 관리
-```sql
-- id (PRIMARY KEY)
-- user_id (UNIQUE) - 자녀 사용자 ID
-- raw_wav_path - S3 원본 음성 파일 경로
-- latent_path - S3 음성 특징 벡터 경로 (.pth)
-- status (ENUM: PENDING, READY, FAILED)
-- updated_at
-```
+### ai-core (Python)
+| 테이블명 | 주요 역할 | 핵심 데이터 |
+| :--- | :--- | :--- |
+| **voice_profiles** | 가족 음성 프로필 관리 | S3 원본/벡터 경로, 처리 상태(PENDING/READY/FAILED) |
+| **user_memories** | 개인화 대화 컨텍스트 저장 | 이전 대화 요약 (다음 통화 시 LLM 프롬프트 주입용) |
+| **user_missions** | 맞춤형 일일 질문 관리 | 개인화 질문 텍스트, 카테고리, 답변 완료 여부 |
+| **conversation_analysis** | 인지 건강 분석 결과 | CHI 종합 점수, 5대 세부 지표, 위험도, 건강 플래그 |
+| **community_radio_topics** | 라디오 방송 스크립트 소스 | 사용자의 일상 답변 (익명화되어 라디오 생성에 활용) |
+| **daily_question** | 공통 커뮤니티 질문 | 매일 자정 자동 갱신되는 오늘의 질문 (단일 레코드) |
 
-#### 2. UserMemory
-사용자별 대화 기억 저장
-```sql
-- id (PRIMARY KEY)
-- user_id (INDEX)
-- conversation_id (UNIQUE)
-- summary_text - "어르신이 오늘 기분이 좋으셨음"
-- created_at
-```
-
-#### 3. UserMission
-사용자별 일일 맞춤 질문
-```sql
-- id (PRIMARY KEY)
-- user_id
-- mission_text - 개인화된 일일 질문
-- category - "health", "memory", "meal", "general"
-- is_cleared - 답변 완료 여부
-- created_at
-```
-
-#### 4. ConversationAnalysis
-대화 분석 결과 및 인지 건강 점수
-```sql
-- id (PRIMARY KEY)
-- conversation_id (UNIQUE)
-- user_id
-- chi_score (0-100) - 인지 건강 지수
-- danger_level (0: 정상, 1: 주의, 2: 위험)
-- recall_score (0-20) - 기억력
-- coherence_score (0-20) - 대화 일관성
-- orientation_score (0-20) - 시간/장소 인지
-- stability_score (0-20) - 감정 안정성
-- engagement_score (0-20) - 참여도
-- question_results (JSON) - 질문별 정답 여부
-- summary (TEXT) - 보호자용 요약
-- health_flags (JSON) - ["headache", "cough"] 건강 이슈
-- daily_answer - 라디오 방송용 답변
-- analyzed_at
-```
-
-#### 5. CommunityRadioTopic
-커뮤니티 라디오 컨텐츠
-```sql
-- id (PRIMARY KEY)
-- user_id
-- answer_text - 방송에 사용될 사용자 답변
-- created_at
-```
-
-#### 6. DailyQuestion
-일일 커뮤니티 질문 (단일 레코드)
-```sql
-- id (PRIMARY KEY, default=1)
-- question_content - 오늘의 공통 질문
-- category
-- updated_at
-```
+### Backend (Spring Boot)
+| 테이블명 | 주요 역할 | 핵심 데이터 |
+| :--- | :--- | :--- |
+| **users** | 보호자 계정 관리 | 이메일, 비밀번호, 이름, 소셜 로그인 Provider |
+| **social_accounts** | 소셜 계정 연결 정보 | Provider(GOOGLE/NAVER/KAKAO), Provider ID |
+| **refresh_tokens** | 다중 기기 세션 관리 | 토큰 문자열, 만료 시각, 기기 정보(UserAgent, IP) |
 
 ---
 
-## API 엔드포인트
+## API 문서
 
-### gRPC Service: VoiceConversation
+### CallManager REST API
+#### 통화 관리
+| Method | Endpoint | 설명 |
+| :--- | :--- | :--- |
+| **POST** | `/api/calls/initiate` | 통화 시작 |
+| **GET** | `/api/calls/sessions/{sessionId}` | 세션 조회 |
+| **GET** | `/api/calls/users/{userId}/sessions` | 사용자 세션 목록 |
+| **POST** | `/api/calls/sessions/{sessionId}/end` | 통화 종료 |
+| **POST** | `/api/calls/sessions/{sessionId}/input` | 텍스트 입력 (테스트용) |
 
-**프로토콜**: `voice_conversation.proto`
-**포트**: `50051`
+#### 녹음 관리
+| Method | Endpoint | 설명 |
+| :--- | :--- | :--- |
+| **GET** | `/api/recordings/sessions/{sessionId}/download-url` | 녹음 파일 Presigned URL 조회 |
+| **DELETE** | `/api/recordings/sessions/{sessionId}` | 녹음 파일 삭제 |
+
+#### Twilio Webhook
+| Method | Endpoint | 설명 |
+| :--- | :--- | :--- |
+| **POST** | `/api/webhooks/twilio/voice` | Voice Webhook (TwiML 반환) |
+| **POST** | `/api/webhooks/twilio/status` | Status Callback |
+| **POST** | `/api/webhooks/twilio/recording` | Recording Callback → S3 저장 |
+
+#### WebSocket
+| 엔드포인트 | 설명 |
+| :--- | :--- |
+| `wss://{host}/ws/twilio/media-stream` | Twilio Media Stream 실시간 오디오 |
+
+---
+
+### ai-core REST API
+#### 음성 관리
+| Method | Endpoint | 설명 |
+| :--- | :--- | :--- |
+| **POST** | `/voice/upload/{user_id}` | 원본 음성 파일 S3 업로드 |
+| **POST** | `/voice/register/{user_id}` | 음성 특징 추출 (백그라운드) |
+| **POST** | `/voice/prepare/{user_id}` | 음성 특징을 GPU 메모리에 로드 |
+| **POST** | `/voice/release/{user_id}` | GPU 메모리에서 음성 특징 해제 |
+
+#### 배치 작업
+| Method | Endpoint | 설명 |
+| :--- | :--- | :--- |
+| **POST** | `/force-midnight-job` | 일일 배치 작업 수동 실행 |
+
+---
+
+### Backend REST API
+#### 인증
+| Method | Endpoint | 설명 |
+| :--- | :--- | :--- |
+| **POST** | `/auth/signup` | 회원가입 |
+| **POST** | `/auth/login` | 로그인 (JWT 쿠키 발급) |
+| **POST** | `/auth/logout` | 로그아웃 (쿠키 삭제) |
+| **GET** | `/auth/me` | 현재 사용자 정보 조회 |
+| **GET** | `/auth/verify-email` | 이메일 인증 |
+| **POST** | `/auth/resend-verification` | 인증 이메일 재발송 |
+| **POST** | `/auth/oauth/kakao` | Kakao 인가 코드 로그인 |
+
+#### 사용자 프로필
+| Method | Endpoint | 설명 |
+| :--- | :--- | :--- |
+| **GET** | `/api/users/me/profile` | 프로필 조회 |
+| **PATCH** | `/api/users/me/profile` | 프로필 수정 (이름, 사진, 전화번호, 생년월일) |
+| **PUT** | `/api/users/me/password` | 비밀번호 변경 (LOCAL 사용자만) |
+| **PATCH** | `/api/users/me/username` | 아이디 변경 |
+| **DELETE** | `/api/users/me` | 계정 삭제 |
+| **GET** | `/api/users/me/provider` | 인증 제공자 정보 조회 |
+
+---
+
+### gRPC Service
+* **Protocol**: `voice_stream.proto`
+* **Port**: `50051`
 
 ```protobuf
 service VoiceConversation {
   rpc StreamConversation(stream VoiceRequest) returns (stream VoiceResponse);
 }
+
+message VoiceRequest {
+  oneof payload {
+    SessionConfig config = 1;
+    bytes audio_content = 2;
+  }
+}
+
+message VoiceResponse {
+  oneof payload {
+    bytes audio_output = 1;
+    string transcript = 2;
+    string ai_response = 3;
+    bool is_final = 4;
+  }
+}
 ```
-
-#### Request Types
-- `SessionConfig`: 세션 초기화 (user_id, session_id, sample_rate, language_code)
-- `audio_content`: PCM 오디오 청크 (권장: 16kHz, 16-bit, mono)
-
-#### Response Types
-- `audio_output`: AI 음성 오디오 청크 (24kHz, 16-bit)
-- `transcript`: 사용자 음성 텍스트 변환
-- `ai_response`: AI 응답 텍스트
-- `is_final`: 문장 완료 플래그
-
-### REST API Endpoints
-
-**프레임워크**: FastAPI
-**기본 포트**: `8000`
-
-| Method | Endpoint | 설명 |
-|--------|----------|------|
-| POST | `/voice/upload/{user_id}` | 원본 음성 파일 S3 업로드 |
-| POST | `/voice/register/{user_id}` | 음성 특징 추출 (백그라운드) |
-| POST | `/voice/prepare/{user_id}` | 음성 특징을 GPU 메모리에 로드 |
-| POST | `/voice/release/{user_id}` | GPU 메모리에서 음성 특징 해제 |
-| POST | `/force-midnight-job` | 일일 배치 작업 수동 실행 |
 
 ---
 
 ## 시스템 플로우
 
-### 1. 실시간 통화 플로우
+### 1. 핵심 데이터 플로우
+```
+1. Twilio → CallManager
+   • WebSocket 연결 (mulaw 8kHz)
+   
+2. CallManager (오디오 변환)
+   • mulaw 8kHz → PCM 16kHz 업샘플링
+   
+3. CallManager → ai-core
+   • gRPC 양방향 스트리밍 (PCM 16kHz)
+   
+4. ai-core (AI 처리)
+   • STT: 음성 → 텍스트 (300ms)
+   • LLM: 대화 생성 (500ms)
+   • TTS: 텍스트 → 음성 (400ms)
+   • 총 1.2초 평균 응답
+   
+5. ai-core → CallManager
+   • gRPC 응답 (PCM 16kHz)
+   
+6. CallManager (오디오 변환)
+   • PCM 16kHz → mulaw 8kHz 다운샘플링
+   
+7. CallManager → Twilio
+   • WebSocket 전송 (mulaw 8kHz)
+   
+8. Twilio → 어르신
+   • 전화 출력
+```
+
+### 2. 실시간 통화 플로우
 
 ```
 사용자 음성 입력
@@ -248,7 +384,29 @@ gRPC 스트리밍 송신
 [통화 종료] → S3에 대화 로그 업로드
 ```
 
-### 2. 일일 분석 플로우 (매일 자정 00:00)
+### 3. 음성 프로필 등록 플로우
+
+```
+보호자 앱 (음성 파일 업로드)
+  ↓
+POST /voice/upload/{user_id}
+  ↓
+S3 uploads/{user_id}/ 저장
+  ↓
+POST /voice/register/{user_id}
+  ↓
+OpenVoice V2 Tone Color 임베딩 추출 (백그라운드)
+  ↓
+S3 latents/{user_id}/ 저장 (.pth)
+  ↓
+voice_profiles 상태 PENDING → READY
+  ↓
+통화 시작 전 POST /voice/prepare/{user_id}
+  ↓
+GPU 메모리에 latent 로드 → 실시간 합성 준비 완료
+```
+
+### 4. 일일 분석 플로우 (매일 자정 00:00)
 
 ```
 APScheduler 트리거
@@ -273,14 +431,101 @@ APScheduler 트리거
 
 ---
 
+## 주요 서비스 상세
+
+### CallManager (Spring Boot)
+
+**역할**: Twilio 통화 관리 및 AI gRPC 브리지
+
+- **통화 흐름**: Twilio 아웃바운드 호출 → Webhook TwiML 응답 → WebSocket Media Stream 연결 → gRPC 스트리밍
+- **세션 관리**: 통화 상태(INITIATED → IN_PROGRESS → COMPLETED) DB 추적 및 타임아웃 스케줄러
+- **녹음 처리**: Twilio 녹음 콜백 → S3 업로드 → AI 서버 음성 프로필 연동
+- **오디오 변환**: mulaw 8kHz ↔ PCM 16kHz 실시간 변환 (AudioConverter)
+- **AI 프로필 연동**: 통화 종료 후 S3 녹음 경로를 ai-core에 비동기 전달 (AIVoiceProfileClient)
+
+### STT Service (`services/stt/`)
+
+- **엔진**: Faster-Whisper (small/medium 모델)
+- **언어**: 한국어
+- **특징**: VAD 필터링, 환청(hallucination) 방지
+- **출력**: 텍스트 전사 + 세그먼트 정보
+
+### TTS Service (`services/tts/`)
+
+- **엔진**: OpenVoice V2 (Melo TTS + Tone Color Converter)
+- **특징**:
+  - 사용자별 음성 클로닝
+  - 스트리밍 합성 지원
+  - 속도(tau), 톤 파라미터 조정 가능
+- **출력**: 24kHz, 16-bit PCM 오디오
+
+### LLM Service (`services/llm/`)
+
+- **모델**: Gemma-2-9B-IT (llama-cpp 백엔드)
+- **특징**:
+  - 스트리밍 생성 (문장 단위 청킹)
+  - JSON 출력 모드 (구조화된 분석)
+  - 대화 히스토리 관리
+- **시스템 프롬프트**: "다정한 손주" (친절한 손자/손녀 페르소나)
+
+### Conversation Manager (`services/llm/conversation_manager.py`)
+
+- **기능**: 통화 세션 내 대화 흐름 제어
+- **특징**:
+  - DB에서 오늘의 UserMission 로드 후 순차 질문
+  - LLM 판단 태그 `[1]` 기반 미션 완료 감지
+  - UserMemory 기반 개인화 오프닝 멘트 생성
+- **출력**: S3 업로드용 대화 로그 + 미션 완료 여부
+
+### Analysis Service (`services/emotion_analysis_service/`)
+
+- **기능**: 통화 후 인지 건강 분석
+- **출력**:
+  - CHI 점수 (0-100)
+  - 5가지 세부 지표 (recall, coherence, orientation, stability, engagement)
+  - 건강 플래그 (두통, 우울, 불면 등)
+  - 보호자용 요약
+  - 메모리 요약 (다음 대화용)
+
+### Voice Training Service (`services/voice_training_service/`)
+
+- **기능**: 음성 클로닝 파이프라인
+- **프로세스**:
+  1. 원본 음성 파일 S3 업로드
+  2. Tone Color 임베딩 추출
+  3. 특징 벡터 S3 저장
+  4. GPU 메모리 로딩 (통화 시)
+- **상태 관리**: PENDING → READY/FAILED
+
+### Radio Service (`services/radio_service/`)
+
+- **기능**: 일일 커뮤니티 라디오 방송 생성
+- **컴포넌트**:
+  - **radio_pipeline**: LLM 스크립트 생성 + TTS 합성
+  - **question_generator**: 공통 질문 + 개인화 미션 생성
+  - **merge_daily_answer**: 분석 데이터 → 라디오 토픽 마이그레이션
+  - **scheduler**: APScheduler 자정 실행
+
+### Backend (Spring Boot)
+
+**역할**: 보호자 앱 대상 REST API 서버
+
+- **인증**: JWT 쿠키 기반 인증, Kakao/Google/Naver OAuth2 소셜 로그인
+- **사용자 관리**: 회원가입, 이메일 인증, 프로필 수정, 비밀번호 변경, 계정 삭제
+- **토큰 관리**: RefreshToken 발급/무효화, 다중 기기 세션 관리, 만료 토큰 스케줄링 정리
+
+---
+
 ## 설치 및 실행
 
 ### 사전 요구사항
 
 - **Python**: 3.11+
+- **Java**: 17+
 - **CUDA**: PyTorch GPU 지원 (CUDA 11.8+)
 - **AWS 계정**: S3, RDS 접근 권한
-- **MySQL**: RDS 또는 로컬 MySQL 서버
+- **MySQL/MariaDB**: RDS 또는 로컬 서버
+- **Twilio 계정**: Voice API 사용 권한
 
 ### 1. 환경 설정
 
@@ -299,7 +544,7 @@ pip install -r requirements.txt
 
 ### 2. 환경 변수 설정
 
-`.env` 파일 생성:
+`.env` 파일 생성: 아래 예시 참고
 
 ```env
 # Database (RDS)
@@ -314,6 +559,16 @@ S3_ACCESS_KEY_ID=your-access-key
 S3_SECRET_ACCESS_KEY=your-secret-key
 S3_REGION=ap-northeast-2
 S3_BUCKET_NAME=your-bucket-name
+
+# Twilio (CallManager용)
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=your_auth_token
+TWILIO_PHONE_NUMBER=+1234567890
+WEBHOOK_BASE_URL=https://your-domain.com
+
+# gRPC
+GRPC_AI_SERVICE_HOST=localhost
+GRPC_AI_SERVICE_PORT=50051
 ```
 
 ### 3. 데이터베이스 초기화
@@ -347,9 +602,28 @@ python services/call_service/call_service.py
 uvicorn server.connect_back.controller:app --reload --port 8000
 ```
 
+#### CallManager (Spring Boot)
+```bash
+cd CallManager
+./gradlew bootRun
+# 실행 포트: 8080
+```
+
+#### Backend (Spring Boot)
+```bash
+cd backend
+./gradlew bootRun
+# 실행 포트: 8080
+```
+
 #### 스케줄러 (일일 배치 작업)
 ```bash
 python services/radio_service/scheduler.py
+```
+
+#### Docker Compose (전체 실행)
+```bash
+docker-compose up --build
 ```
 
 ---
@@ -381,76 +655,11 @@ python services/radio_service/radio_test.py
 python mic_to_grpc.py
 ```
 
----
-
-## 주요 서비스 상세
-
-### STT Service (`services/stt/`)
-- **엔진**: Faster-Whisper (small/medium 모델)
-- **언어**: 한국어
-- **특징**: VAD 필터링, 환청(hallucination) 방지
-- **출력**: 텍스트 전사 + 세그먼트 정보
-
-### TTS Service (`services/tts/`)
-- **엔진**: OpenVoice V2 (Melo TTS + Tone Color Converter)
-- **특징**:
-  - 사용자별 음성 클로닝
-  - 스트리밍 합성 지원
-  - 속도(tau), 톤 파라미터 조정 가능
-- **출력**: 24kHz, 16-bit PCM 오디오
-
-### LLM Service (`services/llm/`)
-- **모델**: Gemma-2-9B-IT (llama-cpp 백엔드)
-- **특징**:
-  - 스트리밍 생성 (문장 단위 청킹)
-  - JSON 출력 모드 (구조화된 분석)
-  - 대화 히스토리 관리
-- **시스템 프롬프트**: "다정한 손주" (친절한 손자/손녀 페르소나)
-
-### Analysis Service (`services/emotion_analysis_service/`)
-- **기능**: 통화 후 인지 건강 분석
-- **출력**:
-  - CHI 점수 (0-100)
-  - 5가지 세부 지표 (recall, coherence, orientation, stability, engagement)
-  - 건강 플래그 (두통, 우울, 불면 등)
-  - 보호자용 요약
-  - 메모리 요약 (다음 대화용)
-
-### Voice Training Service (`services/voice_training_service/`)
-- **기능**: 음성 클로닝 파이프라인
-- **프로세스**:
-  1. 원본 음성 파일 S3 업로드
-  2. Tone Color 임베딩 추출
-  3. 특징 벡터 S3 저장
-  4. GPU 메모리 로딩 (통화 시)
-- **상태 관리**: PENDING → READY/FAILED
-
-### Radio Service (`services/radio_service/`)
-- **기능**: 일일 커뮤니티 라디오 방송 생성
-- **컴포넌트**:
-  - **radio_pipeline**: LLM 스크립트 생성 + TTS 합성
-  - **question_generator**: 공통 질문 + 개인화 미션 생성
-  - **merge_daily_answer**: 분석 데이터 → 라디오 토픽 마이그레이션
-  - **scheduler**: APScheduler 자정 실행
-
----
-
-## 보안 및 프라이버시
-
-- **데이터 암호화**: S3 버킷 암호화 활성화
-- **액세스 제어**: IAM 역할 기반 S3/RDS 접근
-- **개인정보 보호**: 음성 데이터는 익명화된 user_id로 관리
-- **HTTPS**: 프로덕션 환경 TLS 적용 권장
-
----
-
-## 성능 최적화
-
-- **GPU 가속**: PyTorch CUDA 지원 (RTX 3090/4090 권장)
-- **Mixed Precision**: 추론 시 FP16 사용
-- **In-Memory Caching**: 음성 latent 벡터 GPU 메모리 캐싱
-- **Streaming**: 청크 단위 오디오 전송으로 레이턴시 최소화
-- **VAD 최적화**: 침묵 구간 필터링으로 불필요한 STT 호출 제거
+### CallManager 테스트
+```bash
+cd CallManager
+./gradlew test
+```
 
 ---
 
@@ -459,30 +668,11 @@ python mic_to_grpc.py
 - **로깅**: Loguru를 통한 구조화된 로그
 - **메트릭**: Prometheus 통합 (추가 설정 필요)
 - **에러 추적**: 서비스별 로그 파일 생성
-- **헬스 체크**: REST API `/health` 엔드포인트 (구현 권장)
+- **헬스 체크**: Spring Boot Actuator (`/actuator/health`)
+- **API 문서**: Swagger UI (`/swagger-ui.html`, backend 서버)
 
 ---
 
 ## 라이센스
 
 본 프로젝트는 내부 사용 목적으로 개발되었습니다.
-
----
-
-## 최근 개발 활동
-
-**현재 브랜치**: `ai-core`
-**메인 브랜치**: `main`
-
-**최근 커밋**:
-- feat: controller test 코드 수정
-- feat: grpc refactor & voice 업로드 엔드포인트 추가
-- feat: analysis_service test 완료
-- feat: User_mission 로직 보완 및 테스트 완료
-- feat: analysis_service, conversation_service 구현 완료
-
----
-
-## 문의 및 지원
-
-프로젝트 관련 문의사항은 개발팀에 문의해주세요.
