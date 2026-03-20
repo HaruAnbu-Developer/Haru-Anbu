@@ -23,6 +23,11 @@
 
 ---
 
+## 시스템 아키텍처
+<img width="902" height="498" alt="하루안부 아키텍처 drawio (1)" src="https://github.com/user-attachments/assets/bee16813-f18e-4f63-9386-04d420902b23" />
+
+---
+
 ## 기술 스택
 
 ### CallManager (Java/Spring Boot) - 실시간 미들웨어
