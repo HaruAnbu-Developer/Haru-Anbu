@@ -1,488 +1,107 @@
 # Haru-Anbu AI Core
 
-노인 돌봄을 위한 AI 음성 대화 시스템
+독거 노인을 위한 AI 음성 안부 전화 시스템의 **AI 파이프라인(ai-core)** 입니다. 가족의 목소리를 복제한 음성으로 어르신과 실시간 대화를 나누고, 통화 기록을 분석해 보호자용 리포트와 다음 통화의 맥락을 만듭니다.
 
-## 프로젝트 개요
+> **담당 범위**: 이 브랜치(`ai-core`)의 AI 파이프라인 전체 — 실시간 음성 대화(VAD·STT·LLM·TTS), 음성 클로닝, 통화 분석, 일일 질문·라디오 생성, AI 전용 DB 스키마 — 는 조남웅([@Namung2](https://github.com/Namung2))이 설계·구현했습니다. 백엔드 API 서버와 앱은 팀원이 담당했습니다 (`main`, `callManager`, `frontend` 브랜치).
+> **개발 기간**: 2025.11 – 2026.03 · 팀 프로젝트 (HaruAnbu-Developer)
+> **상태**: 기능 구현 및 단일 사용자 테스트 완료. 실사용자 서비스 단계는 아닙니다.
 
-**Haru-Anbu**는 독거 노인을 위한 AI 기반 음성 대화 시스템입니다. 가족 구성원의 목소리를 복제하여 자연스러운 대화를 제공하며, 대화 분석을 통해 인지 건강 상태를 모니터링합니다.
+## Pipeline Overview
 
-### 주요 기능
+<img width="1890" height="861" alt="Image" src="https://github.com/user-attachments/assets/f5d6b26a-f248-4b84-a567-5cdccdf50965" />
 
-- **실시간 음성 대화**: gRPC 기반 양방향 스트리밍으로 자연스러운 음성 대화 제공
-- **음성 클로닝**: OpenVoice V2를 활용한 가족 구성원 목소리 복제
-- **인지 건강 분석**: 대화 내용 분석을 통한 치매 조기 발견 및 인지 건강 점수(CHI) 산출
-- **개인화된 대화**: 사용자별 메모리 시스템 및 맞춤형 일일 미션
-- **커뮤니티 라디오**: 사용자들의 일상 이야기를 모아 일일 라디오 방송 생성
-- **보호자 리포트**: 대화 품질 및 건강 지표에 대한 일일 리포트 제공
+실시간 통화는 gRPC 양방향 스트림 하나로 처리됩니다. 클라이언트가 16 kHz PCM 오디오를 보내면 VAD가 발화 구간을 잘라 STT에 넘기고, LLM이 문장 단위로 답변을 생성하는 즉시 TTS가 합성해 24 kHz 오디오로 돌려보냅니다. 통화가 끝나면 대화 로그가 S3에 저장되고, 자정 배치가 이를 분석해 DB에 결과를 남깁니다.
 
-### 타겟 사용자
+## Components
 
-- **주 사용자**: 70-80대 독거 노인
-- **보호자**: 자녀 및 가족 구성원
-- **목적**: 정서적 교감 제공 및 인지 건강 모니터링
+### Real-time call (`services/call_service/`, `services/stt/`, `services/llm/`, `services/tts/`)
+- **VAD**: Silero VAD로 1024-sample 윈도우마다 발화 시작/종료를 판정합니다. 0.5초 미만의 짧은 소리는 잡음으로 버립니다.
+- **STT**: Faster-Whisper(한국어). 환각 억제를 위해 `condition_on_previous_text=False`, 반복 페널티, 낮은 temperature, 도메인 initial prompt를 사용합니다.
+- **LLM**: Gemma-2-9B-IT(Q5_K_M GGUF)를 llama-cpp로 로컬 구동합니다. 토큰 스트림을 문장 단위로 끊어 TTS로 넘겨 체감 지연을 줄입니다. 분석용으로는 JSON 전용 출력 모드를 따로 둡니다.
+- **TTS / 음성 클로닝**: OpenVoice V2. 기본 화자로 음성을 만든 뒤 tone color converter로 가족 목소리의 임베딩을 입혀 출력합니다. 사용자별 임베딩(`.pth`)은 통화 시작 시 S3에서 GPU 메모리로 올리고 종료 시 해제합니다 (`voice_training_service/`).
+- **ConversationManager**: DB에서 그날의 개인화 질문(미션)을 불러와 LLM 지시문에 끼워 넣고, LLM이 답변 앞에 붙이는 `[1]` 태그로 질문 수행 여부를 판정합니다. 통화 로그를 모아 종료 시 S3에 업로드합니다.
 
----
+### Daily batch (`services/emotion_analysis_service/`, `services/radio_service/`)
+APScheduler가 매일 00:00에 아래 순서로 실행합니다.
+1. **통화 분석**: 전날 S3 로그를 LLM에 넣어 JSON 형태의 점수(인지 지표 5종, 종합 점수, 위험도), 건강 키워드, 보호자용 요약, 다음 통화용 기억 한 줄을 뽑아 DB에 저장합니다.
+2. **기억·미션 갱신**: 분석 결과로 `UserMemory`를 쌓고 완료된 `UserMission`을 처리합니다.
+3. **질문 생성**: 전체 공통 질문 하나와 사용자별 개인화 질문을 LLM으로 생성합니다.
+4. **라디오 생성**: 사용자들의 공통 질문 답변을 모아 라디오 대본을 쓰고 TTS로 합성해 S3에 올립니다.
 
-## 기술 스택
+### Management API (`server/connect_back/`)
+FastAPI. 음성 파일 업로드, 임베딩 추출(백그라운드), 통화 전 GPU 메모리 적재/해제, 배치 수동 실행 엔드포인트를 제공합니다. 백엔드 서버가 이 API를 호출합니다.
 
-### Core Framework
-- **FastAPI** (0.104.1) - REST API
-- **gRPC** + **Protobuf** - 실시간 스트리밍
-- **SQLAlchemy** (2.0.23) + **Alembic** - ORM 및 마이그레이션
-- **PyTorch** (2.1.1) - 딥러닝 프레임워크
+## Data
 
-### AI/ML Models
-- **Faster-Whisper** - 음성 인식 (Speech-to-Text)
-- **Gemma-2-9B-IT** - 대화 생성 언어 모델 (via llama-cpp)
-- **OpenVoice V2** - 음성 클로닝 및 TTS
-- **Silero VAD** - 음성 활동 감지
-- **Sentence Transformers** - 텍스트 임베딩
-- **FAISS** - 벡터 유사도 검색
+AI 전용 MySQL 스키마는 `database/schema.py`에 있습니다.
 
-### Infrastructure
-- **AWS S3** - 음성 파일 및 모델 저장
-- **AWS RDS** (MySQL) - 데이터베이스
-- **Redis** - 캐싱
-- **APScheduler** - 일일 배치 작업 (자정 실행)
-- **Celery** - 백그라운드 작업 큐
+| 테이블 | 용도 |
+|---|---|
+| `VoiceProfile` | 사용자별 원본 음성·임베딩 경로, 처리 상태 |
+| `UserMemory` | 통화별 한 줄 기억 (다음 통화 오프닝에 사용) |
+| `UserMission` | 사용자별 일일 질문과 완료 여부 |
+| `ConversationAnalysis` | 통화 분석 결과 (점수, 요약, 건강 키워드) |
+| `DailyQuestion`, `CommunityRadioTopic` | 공통 질문과 라디오용 답변 |
 
-### Audio Processing
-- **librosa** - 오디오 특징 추출
-- **soundfile** - WAV 파일 I/O
-- **PyAudio** - 마이크/스피커 I/O
+S3에는 통화 로그(JSON), 사용자 음성 임베딩, 라디오 오디오가 저장됩니다.
 
----
-
-## 프로젝트 구조
+## Repository Structure
 
 ```
-Haru-Anbu/
-├── ai-core/
-│   ├── database/              # 데이터베이스 스키마 및 연결
-│   │   ├── database.py        # DB 초기화
-│   │   └── models.py          # SQLAlchemy 모델
-│   │
-│   ├── server/
-│   │   ├── grpc/              # gRPC 프로토콜 정의
-│   │   │   └── voice_conversation.proto
-│   │   └── connect_back/      # FastAPI REST 엔드포인트
-│   │       └── controller.py  # 음성 관리 API
-│   │
-│   ├── services/              # 핵심 AI/ML 서비스
-│   │   ├── stt/               # Speech-to-Text
-│   │   │   ├── stt_service.py
-│   │   │   └── vad_service.py
-│   │   ├── tts/               # Text-to-Speech
-│   │   │   └── tts_service.py
-│   │   ├── llm/               # 언어 모델
-│   │   │   ├── llm_service_Gemma_stream.py
-│   │   │   └── conversation_manager.py
-│   │   ├── call_service/      # 통화 처리 및 스트리밍
-│   │   │   └── call_service.py
-│   │   ├── emotion_analysis_service/  # 대화 분석
-│   │   │   └── analysis_service.py
-│   │   ├── voice_training_service/    # 음성 클로닝
-│   │   │   ├── voice_processor.py
-│   │   │   └── latent_manager.py
-│   │   └── radio_service/     # 라디오 방송 생성
-│   │       ├── radio_pipeline.py
-│   │       ├── question_generator.py
-│   │       ├── merge_daily_answer.py
-│   │       └── scheduler.py
-│   │
-│   ├── checkpoints/           # 사전 학습 모델 가중치
-│   │   ├── converter/         # OpenVoice 모델
-│   │   └── base_speakers/     # 기본 TTS 화자
-│   │
-│   ├── test/                  # 테스트 파일 및 샘플 오디오
-│   │   ├── test_gpu.py
-│   │   ├── test_S3.py
-│   │   ├── radio_test.py
-│   │   └── test_analysis_batch.py
-│   │
-│   └── requirements.txt       # Python 패키지 의존성
-│
-├── .env                       # 환경 변수 (AWS, DB 설정)
-└── README.md                  # 본 문서
+ai-core/
+├── server/
+│   ├── grpc/                  # voice_stream.proto 및 생성 코드
+│   └── connect_back/          # FastAPI 관리 API
+├── services/
+│   ├── call_service/          # gRPC 통화 서버 (파이프라인 오케스트레이션)
+│   ├── stt/                   # Faster-Whisper, Silero VAD
+│   ├── llm/                   # Gemma-2 서비스, ConversationManager
+│   ├── tts/                   # OpenVoice V2 합성·클로닝
+│   ├── voice_training_service/ # 임베딩 추출, GPU 메모리 관리
+│   ├── emotion_analysis_service/ # 통화 분석 배치
+│   └── radio_service/         # 질문 생성, 라디오 대본·합성, 스케줄러
+├── database/                  # SQLAlchemy 엔진, 스키마
+├── checkpoints/               # OpenVoice 설정 (가중치는 별도 다운로드)
+├── test/                      # GPU, S3, 샘플 오디오 테스트
+├── mic_to_grpc.py             # 마이크 입력 gRPC 클라이언트 (수동 테스트용)
+└── requirements.txt
 ```
 
----
+## Running
 
-## 데이터베이스 스키마
-
-### 주요 테이블
-
-#### 1. VoiceProfile
-사용자별 음성 프로필 관리
-```sql
-- id (PRIMARY KEY)
-- user_id (UNIQUE) - 자녀 사용자 ID
-- raw_wav_path - S3 원본 음성 파일 경로
-- latent_path - S3 음성 특징 벡터 경로 (.pth)
-- status (ENUM: PENDING, READY, FAILED)
-- updated_at
-```
-
-#### 2. UserMemory
-사용자별 대화 기억 저장
-```sql
-- id (PRIMARY KEY)
-- user_id (INDEX)
-- conversation_id (UNIQUE)
-- summary_text - "어르신이 오늘 기분이 좋으셨음"
-- created_at
-```
-
-#### 3. UserMission
-사용자별 일일 맞춤 질문
-```sql
-- id (PRIMARY KEY)
-- user_id
-- mission_text - 개인화된 일일 질문
-- category - "health", "memory", "meal", "general"
-- is_cleared - 답변 완료 여부
-- created_at
-```
-
-#### 4. ConversationAnalysis
-대화 분석 결과 및 인지 건강 점수
-```sql
-- id (PRIMARY KEY)
-- conversation_id (UNIQUE)
-- user_id
-- chi_score (0-100) - 인지 건강 지수
-- danger_level (0: 정상, 1: 주의, 2: 위험)
-- recall_score (0-20) - 기억력
-- coherence_score (0-20) - 대화 일관성
-- orientation_score (0-20) - 시간/장소 인지
-- stability_score (0-20) - 감정 안정성
-- engagement_score (0-20) - 참여도
-- question_results (JSON) - 질문별 정답 여부
-- summary (TEXT) - 보호자용 요약
-- health_flags (JSON) - ["headache", "cough"] 건강 이슈
-- daily_answer - 라디오 방송용 답변
-- analyzed_at
-```
-
-#### 5. CommunityRadioTopic
-커뮤니티 라디오 컨텐츠
-```sql
-- id (PRIMARY KEY)
-- user_id
-- answer_text - 방송에 사용될 사용자 답변
-- created_at
-```
-
-#### 6. DailyQuestion
-일일 커뮤니티 질문 (단일 레코드)
-```sql
-- id (PRIMARY KEY, default=1)
-- question_content - 오늘의 공통 질문
-- category
-- updated_at
-```
-
----
-
-## API 엔드포인트
-
-### gRPC Service: VoiceConversation
-
-**프로토콜**: `voice_conversation.proto`
-**포트**: `50051`
-
-```protobuf
-service VoiceConversation {
-  rpc StreamConversation(stream VoiceRequest) returns (stream VoiceResponse);
-}
-```
-
-#### Request Types
-- `SessionConfig`: 세션 초기화 (user_id, session_id, sample_rate, language_code)
-- `audio_content`: PCM 오디오 청크 (권장: 16kHz, 16-bit, mono)
-
-#### Response Types
-- `audio_output`: AI 음성 오디오 청크 (24kHz, 16-bit)
-- `transcript`: 사용자 음성 텍스트 변환
-- `ai_response`: AI 응답 텍스트
-- `is_final`: 문장 완료 플래그
-
-### REST API Endpoints
-
-**프레임워크**: FastAPI
-**기본 포트**: `8000`
-
-| Method | Endpoint | 설명 |
-|--------|----------|------|
-| POST | `/voice/upload/{user_id}` | 원본 음성 파일 S3 업로드 |
-| POST | `/voice/register/{user_id}` | 음성 특징 추출 (백그라운드) |
-| POST | `/voice/prepare/{user_id}` | 음성 특징을 GPU 메모리에 로드 |
-| POST | `/voice/release/{user_id}` | GPU 메모리에서 음성 특징 해제 |
-| POST | `/force-midnight-job` | 일일 배치 작업 수동 실행 |
-
----
-
-## 시스템 플로우
-
-### 1. 실시간 통화 플로우
-
-```
-사용자 음성 입력
-  ↓
-gRPC 스트리밍 수신
-  ↓
-VAD (음성 활동 감지)
-  ↓
-STT (Faster-Whisper) → 텍스트 변환
-  ↓
-Conversation Manager → 대화 컨텍스트 관리
-  ↓
-LLM (Gemma-2) → 응답 생성
-  ↓
-TTS (OpenVoice) → 클론 음성 합성
-  ↓
-gRPC 스트리밍 송신
-  ↓
-사용자 스피커 출력
-  ↓
-[통화 종료] → S3에 대화 로그 업로드
-```
-
-### 2. 일일 분석 플로우 (매일 자정 00:00)
-
-```
-APScheduler 트리거
-  ↓
-[1] 대화 분석 서비스
-  - S3에서 전날 대화 로그 로드
-  - LLM 분석 → CHI 점수, 건강 플래그 생성
-  - ConversationAnalysis, UserMemory 저장
-  ↓
-[2] 데이터 마이그레이션
-  - daily_answer → CommunityRadioTopic 복사
-  ↓
-[3] 질문 생성
-  - DailyQuestion 생성 (공통 질문)
-  - UserMission 생성 (개인화 질문, 메모리 기반)
-  ↓
-[4] 라디오 방송 생성
-  - CommunityRadioTopic 기반 스크립트 생성
-  - TTS로 오디오 합성
-  - S3에 방송 업로드
-```
-
----
-
-## 설치 및 실행
-
-### 사전 요구사항
-
-- **Python**: 3.11+
-- **CUDA**: PyTorch GPU 지원 (CUDA 11.8+)
-- **AWS 계정**: S3, RDS 접근 권한
-- **MySQL**: RDS 또는 로컬 MySQL 서버
-
-### 1. 환경 설정
-
-```bash
-# 레포지토리 클론
-git clone <repository-url>
-cd Haru-Anbu/ai-core
-
-# 가상환경 생성 및 활성화
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-
-# 의존성 설치
-pip install -r requirements.txt
-```
-
-### 2. 환경 변수 설정
-
-`.env` 파일 생성:
-
-```env
-# Database (RDS)
-DB_HOST=your-rds-endpoint.rds.amazonaws.com
-DB_PORT=3306
-DB_USER=admin
-DB_PASSWORD=your-password
-DB_NAME=ai_core_db
-
-# AWS S3
-S3_ACCESS_KEY_ID=your-access-key
-S3_SECRET_ACCESS_KEY=your-secret-key
-S3_REGION=ap-northeast-2
-S3_BUCKET_NAME=your-bucket-name
-```
-
-### 3. 데이터베이스 초기화
+**요구 사항**: Python 3.11, CUDA GPU (VRAM 12 GB 이상 권장 — Gemma-2-9B Q5 + Whisper + OpenVoice 동시 적재), MySQL, AWS S3 버킷
 
 ```bash
 cd ai-core
-python -c "from database.database import init_db; init_db()"
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
-### 4. 모델 체크포인트 다운로드
+`.env`에 DB 접속 정보(`DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`)와 S3 정보(`S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION`, `S3_BUCKET_NAME`)를 넣습니다.
 
-OpenVoice V2 모델을 `checkpoints/` 디렉토리에 배치:
-```
-checkpoints/
-├── converter/
-│   ├── config.json
-│   └── checkpoint.pth
-└── base_speakers/ses/kr.pth
-```
+모델 파일은 레포에 포함되어 있지 않습니다.
+- Gemma-2-9B-IT GGUF(Q5_K_M) → `models/llm/gemma-2-9b-it-Q5_K_M.gguf`
+- OpenVoice V2 converter 체크포인트 → `checkpoints/converter/checkpoint.pth`
+- Faster-Whisper 모델은 첫 실행 시 자동 다운로드됩니다.
 
-### 5. 서비스 실행
-
-#### gRPC 서버 (통화 서비스)
 ```bash
-python services/call_service/call_service.py
-# 실행 포트: 50051
+python -c "from database.database import init_db; init_db()"     # 테이블 생성
+python services/call_service/call_service.py                      # gRPC 통화 서버 :50051
+uvicorn server.connect_back.controller:app --port 8000            # 관리 API
+python services/radio_service/scheduler.py                        # 일일 배치
+python mic_to_grpc.py                                             # 마이크로 통화 테스트
 ```
 
-#### REST API 서버 (관리 서비스)
-```bash
-uvicorn server.connect_back.controller:app --reload --port 8000
-```
+## Limitations
 
-#### 스케줄러 (일일 배치 작업)
-```bash
-python services/radio_service/scheduler.py
-```
+- **단일 세션 구조**: GPU 한 장에 세 모델을 모두 올리는 환경을 전제로 설계해, 추론이 비동기 서버의 이벤트 루프 안에서 동기적으로 실행되고 VAD·LLM 서비스가 싱글톤입니다. 동시 통화를 지원하려면 모델 서버 분리와 세션별 상태 관리가 필요합니다.
+- **분석 결과는 검증되지 않은 LLM 기반 휴리스틱입니다.** 인지 지표와 위험도는 프롬프트로 산출한 값이며 임상적 근거가 없습니다. 보호자 참고용 요약 이상의 의미를 두어서는 안 됩니다.
+- **LLM 문맥**: 턴마다 지시문과 현재 발화만 모델에 전달됩니다. 이전 턴의 맥락은 ConversationManager가 지시문에 넣는 직전 발화 한 줄과, 전날 분석에서 나온 기억 요약으로만 이어집니다.
+- **배치 중복**: 일일 분석은 "최근 24시간 내 수정된 로그"를 대상으로 하며 처리 완료 표시가 없어, 배치가 두 번 실행되면 같은 통화가 중복 분석될 수 있습니다.
+- **전송 보안**: gRPC는 TLS 없이(`insecure_port`) 동작합니다. 실서비스에는 TLS와 인증이 필요합니다.
+- Windows 환경에서 개발되어 `call_service.py` 상단에 CUDA 라이브러리 경로를 가상환경에서 찾는 코드가 있습니다. 다른 환경에서는 해당 코드가 아무 동작도 하지 않습니다.
 
----
+## Author
 
-## 테스트
-
-### GPU 테스트
-```bash
-python test/test_gpu.py
-```
-
-### S3 연결 테스트
-```bash
-python test/test_S3.py
-```
-
-### 분석 서비스 배치 테스트
-```bash
-python services/emotion_analysis_service/test_analysis_batch.py
-```
-
-### 라디오 생성 테스트
-```bash
-python services/radio_service/radio_test.py
-```
-
-### gRPC 클라이언트 테스트 (마이크 입력)
-```bash
-python mic_to_grpc.py
-```
-
----
-
-## 주요 서비스 상세
-
-### STT Service (`services/stt/`)
-- **엔진**: Faster-Whisper (small/medium 모델)
-- **언어**: 한국어
-- **특징**: VAD 필터링, 환청(hallucination) 방지
-- **출력**: 텍스트 전사 + 세그먼트 정보
-
-### TTS Service (`services/tts/`)
-- **엔진**: OpenVoice V2 (Melo TTS + Tone Color Converter)
-- **특징**:
-  - 사용자별 음성 클로닝
-  - 스트리밍 합성 지원
-  - 속도(tau), 톤 파라미터 조정 가능
-- **출력**: 24kHz, 16-bit PCM 오디오
-
-### LLM Service (`services/llm/`)
-- **모델**: Gemma-2-9B-IT (llama-cpp 백엔드)
-- **특징**:
-  - 스트리밍 생성 (문장 단위 청킹)
-  - JSON 출력 모드 (구조화된 분석)
-  - 대화 히스토리 관리
-- **시스템 프롬프트**: "다정한 손주" (친절한 손자/손녀 페르소나)
-
-### Analysis Service (`services/emotion_analysis_service/`)
-- **기능**: 통화 후 인지 건강 분석
-- **출력**:
-  - CHI 점수 (0-100)
-  - 5가지 세부 지표 (recall, coherence, orientation, stability, engagement)
-  - 건강 플래그 (두통, 우울, 불면 등)
-  - 보호자용 요약
-  - 메모리 요약 (다음 대화용)
-
-### Voice Training Service (`services/voice_training_service/`)
-- **기능**: 음성 클로닝 파이프라인
-- **프로세스**:
-  1. 원본 음성 파일 S3 업로드
-  2. Tone Color 임베딩 추출
-  3. 특징 벡터 S3 저장
-  4. GPU 메모리 로딩 (통화 시)
-- **상태 관리**: PENDING → READY/FAILED
-
-### Radio Service (`services/radio_service/`)
-- **기능**: 일일 커뮤니티 라디오 방송 생성
-- **컴포넌트**:
-  - **radio_pipeline**: LLM 스크립트 생성 + TTS 합성
-  - **question_generator**: 공통 질문 + 개인화 미션 생성
-  - **merge_daily_answer**: 분석 데이터 → 라디오 토픽 마이그레이션
-  - **scheduler**: APScheduler 자정 실행
-
----
-
-## 보안 및 프라이버시
-
-- **데이터 암호화**: S3 버킷 암호화 활성화
-- **액세스 제어**: IAM 역할 기반 S3/RDS 접근
-- **개인정보 보호**: 음성 데이터는 익명화된 user_id로 관리
-- **HTTPS**: 프로덕션 환경 TLS 적용 권장
-
----
-
-## 성능 최적화
-
-- **GPU 가속**: PyTorch CUDA 지원 (RTX 3090/4090 권장)
-- **Mixed Precision**: 추론 시 FP16 사용
-- **In-Memory Caching**: 음성 latent 벡터 GPU 메모리 캐싱
-- **Streaming**: 청크 단위 오디오 전송으로 레이턴시 최소화
-- **VAD 최적화**: 침묵 구간 필터링으로 불필요한 STT 호출 제거
-
----
-
-## 모니터링 및 로깅
-
-- **로깅**: Loguru를 통한 구조화된 로그
-- **메트릭**: Prometheus 통합 (추가 설정 필요)
-- **에러 추적**: 서비스별 로그 파일 생성
-- **헬스 체크**: REST API `/health` 엔드포인트 (구현 권장)
-
----
-
-## 라이센스
-
-본 프로젝트는 내부 사용 목적으로 개발되었습니다.
-
----
-
-## 최근 개발 활동
-
-**현재 브랜치**: `ai-core`
-**메인 브랜치**: `main`
-
-**최근 커밋**:
-- feat: controller test 코드 수정
-- feat: grpc refactor & voice 업로드 엔드포인트 추가
-- feat: analysis_service test 완료
-- feat: User_mission 로직 보완 및 테스트 완료
-- feat: analysis_service, conversation_service 구현 완료
-
----
-
-## 문의 및 지원
-
-프로젝트 관련 문의사항은 개발팀에 문의해주세요.
+조남웅 (Namwoong Cho) — 단국대학교 컴퓨터공학과
+AI core 설계·구현 (2025.11 – 2026.03)
