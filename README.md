@@ -2,10 +2,6 @@
 
 독거 노인을 위한 AI 음성 안부 전화 시스템의 **AI 파이프라인(ai-core)** 입니다. 가족의 목소리를 복제한 음성으로 어르신과 실시간 대화를 나누고, 통화 기록을 분석해 보호자용 리포트와 다음 통화의 맥락을 만듭니다.
 
-> **담당 범위**: 이 브랜치(`ai-core`)의 AI 파이프라인 전체 — 실시간 음성 대화(VAD·STT·LLM·TTS), 음성 클로닝, 통화 분석, 일일 질문·라디오 생성, AI 전용 DB 스키마 — 는 조남웅([@Namung2](https://github.com/Namung2))이 설계·구현했습니다. 백엔드 API 서버와 앱은 팀원이 담당했습니다 (`main`, `callManager`, `frontend` 브랜치).
-> **개발 기간**: 2025.11 – 2026.03 · 팀 프로젝트 (HaruAnbu-Developer)
-> **상태**: 기능 구현 및 단일 사용자 테스트 완료. 실사용자 서비스 단계는 아닙니다.
-
 ## Pipeline Overview
 
 <img width="1890" height="861" alt="Image" src="https://github.com/user-attachments/assets/f5d6b26a-f248-4b84-a567-5cdccdf50965" />
